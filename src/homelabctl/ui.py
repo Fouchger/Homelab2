@@ -160,6 +160,14 @@ class ConfigurationPage(VerticalScroll):
                 allow_blank=False,
             )
         with Vertical(classes="form-section"):
+            yield Static("External DNS", classes="section-title")
+            for widget in self.field(
+                "Cloudflare domains (comma separated, optional)",
+                "field-cloudflare-domains",
+                "example.com, example.net",
+            ):
+                yield widget
+        with Vertical(classes="form-section"):
             yield Static("Proxmox", classes="section-title")
             for widget in self.field("API URL", "field-api-url", "https://pve.home.arpa:8006"):
                 yield widget
@@ -230,6 +238,7 @@ class ConfigurationPage(VerticalScroll):
         values = {
             "#field-site-name": config.site.name,
             "#field-domain": config.site.domain,
+            "#field-cloudflare-domains": ", ".join(config.cloudflare.domains),
             "#field-timezone": config.site.timezone,
             "#field-api-url": str(config.proxmox.api_url),
             "#field-node": config.proxmox.node,
@@ -264,6 +273,13 @@ class ConfigurationPage(VerticalScroll):
                 "domain": value("#field-domain"),
                 "timezone": value("#field-timezone"),
                 "environment": self.query_one("#field-environment", Select).value,
+            },
+            "cloudflare": {
+                "domains": [
+                    item.strip()
+                    for item in value("#field-cloudflare-domains").split(",")
+                    if item.strip()
+                ],
             },
             "proxmox": {
                 "api_url": value("#field-api-url"),

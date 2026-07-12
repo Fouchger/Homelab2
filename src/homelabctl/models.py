@@ -26,6 +26,13 @@ TIMEZONE_PATTERN = re.compile(r"^[A-Za-z_+-]+(?:/[A-Za-z0-9_+.-]+)+$")
 USERNAME_PATTERN = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 
 
+def normalize_domain(value: str, *, example: str) -> str:
+    normalized = value.strip().lower().rstrip(".")
+    if not DOMAIN_PATTERN.fullmatch(normalized):
+        raise ValueError(f"enter a valid DNS domain such as {example}")
+    return normalized
+
+
 class StrictModel(BaseModel):
     """Reject misspelled or obsolete settings instead of silently ignoring them."""
 
@@ -49,10 +56,7 @@ class SiteSettings(StrictModel):
     @field_validator("domain")
     @classmethod
     def validate_domain(cls, value: str) -> str:
-        normalized = value.strip().lower().rstrip(".")
-        if not DOMAIN_PATTERN.fullmatch(normalized):
-            raise ValueError("enter a valid DNS domain such as home.arpa")
-        return normalized
+        return normalize_domain(value, example="home.arpa")
 
     @field_validator("timezone")
     @classmethod
@@ -86,6 +90,22 @@ class ProxmoxSettings(StrictModel):
         normalized = value.strip()
         if not normalized:
             raise ValueError("must not be empty")
+        return normalized
+
+
+class CloudflareSettings(StrictModel):
+    domains: list[str] = Field(
+        default_factory=list,
+        max_length=20,
+        description="Public DNS domains managed through Cloudflare",
+    )
+
+    @field_validator("domains")
+    @classmethod
+    def validate_domains(cls, value: list[str]) -> list[str]:
+        normalized = [normalize_domain(domain, example="example.com") for domain in value]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("domains must not contain duplicates")
         return normalized
 
 
@@ -153,6 +173,7 @@ class HomelabConfig(StrictModel):
 
     schema_version: Literal[1] = 1
     site: SiteSettings = Field(default_factory=SiteSettings)
+    cloudflare: CloudflareSettings = Field(default_factory=CloudflareSettings)
     proxmox: ProxmoxSettings = Field(default_factory=ProxmoxSettings)
     network: NetworkSettings = Field(default_factory=NetworkSettings)
     automation: AutomationSettings = Field(default_factory=AutomationSettings)

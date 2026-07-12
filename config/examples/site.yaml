@@ -4,6 +4,10 @@ site:
   domain: home.arpa
   timezone: Pacific/Auckland
   environment: production
+cloudflare:
+  domains:
+    - example.com
+    - lab.example.net
 proxmox:
   api_url: https://pve.home.arpa:8006
   node: pve

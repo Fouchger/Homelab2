@@ -22,6 +22,22 @@
       "title": "AutomationSettings",
       "type": "object"
     },
+    "CloudflareSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "domains": {
+          "description": "Public DNS domains managed through Cloudflare",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Domains",
+          "type": "array"
+        }
+      },
+      "title": "CloudflareSettings",
+      "type": "object"
+    },
     "DeploymentSettings": {
       "additionalProperties": false,
       "properties": {
@@ -191,6 +207,9 @@
     },
     "site": {
       "$ref": "#/$defs/SiteSettings"
+    },
+    "cloudflare": {
+      "$ref": "#/$defs/CloudflareSettings"
     },
     "proxmox": {
       "$ref": "#/$defs/ProxmoxSettings"

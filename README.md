@@ -64,6 +64,8 @@ uv run homelabctl show --config config/sites/local.yaml
 
 - Reusable defaults and examples are committed.
 - User-specific site files are created under `config/sites/` and ignored.
+- `site.domain` is the internal DNS suffix; `cloudflare.domains` accepts zero, one, or many
+  external domains.
 - Passwords and token secrets are never part of the general site model.
 - The Proxmox token secret is currently supplied using `PROXMOX_VE_API_TOKEN`.
 - SOPS and age encrypted secret files will be added in the secrets milestone.

@@ -26,9 +26,12 @@ async def test_navigation_and_first_run_save(tmp_path: Path) -> None:
         assert app.query_one("#pages").current == "configuration"
 
         app.query_one("#field-site-name").value = "test-lab"
+        app.query_one("#field-cloudflare-domains").value = "example.com, lab.example.net"
         app.query_one(ConfigurationPage).scroll_end(animate=False)
         await pilot.pause()
         await pilot.click("#config-save")
         await pilot.pause()
 
-    assert load_config(config_path).site.name == "test-lab"
+    config = load_config(config_path)
+    assert config.site.name == "test-lab"
+    assert config.cloudflare.domains == ["example.com", "lab.example.net"]
