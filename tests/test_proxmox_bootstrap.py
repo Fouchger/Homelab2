@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import ssl
 import subprocess
+import urllib.error
 from pathlib import Path, PurePosixPath
 from unittest.mock import Mock
 
@@ -13,12 +15,14 @@ from homelabctl.operations import prepare_proxmox_ssh
 from homelabctl.proxmox_bootstrap import (
     PROVISIONING_PRIVILEGES,
     REMOTE_BOOTSTRAP_SCRIPT,
+    DiagnosticLog,
     ProxmoxBootstrapError,
     ProxmoxTokenRecoveryRequired,
     apply_bootstrap,
     build_plan,
     ensure_bootstrap_ssh_key,
     safe_remote_diagnostics,
+    verify_api_token,
 )
 from homelabctl.secrets import ProviderSecret, SecretBundle, SecretPlaceholderError
 
@@ -99,7 +103,8 @@ def test_existing_token_is_reconciled_without_rotation(monkeypatch: pytest.Monke
     set_token = Mock()
     verify = Mock()
     monkeypatch.setattr("homelabctl.proxmox_bootstrap.subprocess.run", run)
-    monkeypatch.setattr("homelabctl.proxmox_bootstrap.load_secrets", lambda *args, **kwargs: bundle)
+    load = Mock(return_value=bundle)
+    monkeypatch.setattr("homelabctl.proxmox_bootstrap.load_secrets", load)
     monkeypatch.setattr("homelabctl.proxmox_bootstrap.set_proxmox_token", set_token)
     monkeypatch.setattr("homelabctl.proxmox_bootstrap.verify_api_token", verify)
 
@@ -113,6 +118,7 @@ def test_existing_token_is_reconciled_without_rotation(monkeypatch: pytest.Monke
     assert not result.created_or_rotated
     set_token.assert_not_called()
     verify.assert_called_once()
+    assert "config" not in load.call_args.kwargs
     assert "0" in run.call_args.args[0]
 
 
@@ -231,6 +237,27 @@ def test_diagnostic_log_keeps_safe_output_and_suppresses_token_response(
     assert "Creating token homelab@pve!control-plane" in logged
     assert "new-token response (value suppressed)" in logged
     assert token_value not in logged
+
+
+def test_api_certificate_failure_has_actionable_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    verification_error = ssl.SSLCertVerificationError(1, "unable to get local issuer certificate")
+    monkeypatch.setattr(
+        "homelabctl.proxmox_bootstrap.urllib.request.urlopen",
+        Mock(side_effect=urllib.error.URLError(verification_error)),
+    )
+    diagnostic = DiagnosticLog(tmp_path / "bootstrap.log")
+
+    with pytest.raises(ProxmoxBootstrapError, match="deliberately disable"):
+        verify_api_token(
+            default_config(),
+            "homelab@pve!control-plane=test-value",
+            diagnostic=diagnostic,
+        )
+
+    logged = diagnostic.path.read_text(encoding="utf-8")
+    assert "CERTIFICATE_VERIFY_FAILED" not in logged or "api.exception" in logged
 
 
 def test_unprefixed_arbitrary_diagnostics_are_not_displayed() -> None:

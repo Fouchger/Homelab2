@@ -448,13 +448,16 @@ def apply_bootstrap(
 
     if response.get("status") == "existing":
         try:
-            bundle = load_secrets(secrets_path, config=config, sops_executable=sops_executable)
+            # Proxmox reconciliation must not be blocked by an unrelated optional provider token.
+            bundle = load_secrets(secrets_path, sops_executable=sops_executable)
         except SecretPlaceholderError as exc:
+            diagnostic.write("sops.read", f"placeholder: {exc}")
             raise ProxmoxTokenRecoveryRequired(
                 "The Proxmox token exists, but SOPS still contains its generated placeholder.",
                 diagnostic_log=diagnostic.path,
             ) from exc
         except SecretError as exc:
+            diagnostic.write("sops.read", f"failed: {type(exc).__name__}: {exc}")
             raise ProxmoxBootstrapError(
                 "The token exists, but the encrypted secret store could not be read safely. "
                 "Repair SOPS/age access before attempting token recovery.",
@@ -534,6 +537,13 @@ def verify_api_token(
     except (OSError, urllib.error.URLError) as exc:
         if diagnostic is not None:
             diagnostic.write("api.exception", f"{type(exc).__name__}: {exc}")
+        if isinstance(getattr(exc, "reason", None), ssl.SSLCertVerificationError):
+            raise ProxmoxBootstrapError(
+                "Proxmox API certificate verification failed. Install/trust the Proxmox CA "
+                "certificate and use the certificate hostname, or deliberately disable "
+                "'Verify TLS certificate' in Configuration for this private endpoint.",
+                diagnostic_log=diagnostic.path if diagnostic else None,
+            ) from exc
         raise ProxmoxBootstrapError(
             "Proxmox API token verification failed. Check TLS trust, endpoint, and role permissions.",
             diagnostic_log=diagnostic.path if diagnostic else None,

@@ -105,6 +105,11 @@ sanitized error responses. Token creation output, authorization values, UUID-sha
 JSON token values are redacted or suppressed. On Linux the log is restricted to the current user;
 the `logs/` directory is excluded from Git.
 
+API verification honors **Verify TLS certificate** from the Configuration page. Keep it enabled
+when the control plane trusts the Proxmox certificate authority and the API URL uses a hostname on
+the certificate. For a private self-signed endpoint, either install that CA on the control plane or
+deliberately disable the switch; bootstrap never weakens certificate verification automatically.
+
 ## Safe reruns and rotation
 
 Normal reruns reconcile the role privileges, enabled user, user ACL, token ACL, and permission
