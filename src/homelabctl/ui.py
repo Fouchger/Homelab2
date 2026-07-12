@@ -437,6 +437,8 @@ class OperationsPage(Vertical):
         )
         with Grid(id="operations-grid"):
             for operation in OPERATIONS:
+                if not operation.visible:
+                    continue
                 with Vertical(classes="operation-card"):
                     yield Static(operation.title, classes="operation-title")
                     yield Static(operation.description, classes="muted")
@@ -666,9 +668,27 @@ class ControlPlaneApp(App[None]):
                 log.write("[yellow]Cancelled; no changes were made.[/yellow]\n")
                 return
         result: OperationResult = await asyncio.to_thread(execute, identifier, self.config_path)
-        color = "green" if result.succeeded else "red"
         for line in result.lines:
             log.write(line)
+        if (
+            not result.succeeded
+            and result.recovery_operation is not None
+            and result.recovery_prompt is not None
+        ):
+            confirmed = await self.push_screen_wait(
+                ConfirmDialog("Recover unavailable Proxmox token?", result.recovery_prompt)
+            )
+            if confirmed:
+                log.write("[bold yellow]Explicit token recovery confirmed[/bold yellow]")
+                result = await asyncio.to_thread(
+                    execute, result.recovery_operation, self.config_path
+                )
+                for line in result.lines:
+                    log.write(line)
+            else:
+                log.write(
+                    "[yellow]Token recovery cancelled; the existing token was retained.[/yellow]"
+                )
         if result.copy_text is not None and result.interactive_command is not None:
             installed = await self.push_screen_wait(
                 CopyCommandDialog(
@@ -682,6 +702,7 @@ class ControlPlaneApp(App[None]):
                 if installed
                 else "[yellow]SSH key installation dialog closed.[/yellow]"
             )
+        color = "green" if result.succeeded else "red"
         log.write(
             f"[{color}]{'✓ Completed' if result.succeeded else '✗ Action needs attention'}[/{color}]\n"
         )

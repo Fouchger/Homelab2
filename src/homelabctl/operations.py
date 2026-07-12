@@ -18,6 +18,7 @@ from homelabctl.configuration import (
 from homelabctl.doctor import checks_succeeded, run_checks
 from homelabctl.proxmox_bootstrap import (
     ProxmoxBootstrapError,
+    ProxmoxTokenRecoveryRequired,
     apply_bootstrap,
     build_plan,
     ensure_bootstrap_ssh_key,
@@ -39,6 +40,8 @@ class OperationResult:
     copy_text: str | None = None
     interactive_command: tuple[str, ...] | None = None
     fallback_text: str | None = None
+    recovery_operation: str | None = None
+    recovery_prompt: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +52,7 @@ class Operation:
     run: Callable[[Path], OperationResult]
     destructive: bool = False
     plan: Callable[[Path], OperationResult] | None = None
+    visible: bool = True
 
 
 def validate_configuration(path: Path) -> OperationResult:
@@ -186,6 +190,19 @@ def bootstrap_proxmox_identity(path: Path) -> OperationResult:
         secret_path, identity_path, _, _, identity_created = ensure_secret_store()
         private_key, _, _ = ensure_bootstrap_ssh_key()
         result = apply_bootstrap(config, secret_path, ssh_private_key=private_key)
+    except ProxmoxTokenRecoveryRequired as exc:
+        return OperationResult(
+            False,
+            "Proxmox API token recovery required",
+            tuple(str(exc).splitlines()),
+            recovery_operation="proxmox-token-recover",
+            recovery_prompt=(
+                "The named Proxmox token exists, but its usable value is absent from SOPS.\n\n"
+                "Recovery will delete only that API token, create its replacement with the same "
+                "separated permissions, write the new one-time value directly into SOPS, and "
+                "verify API authentication. The role and user will be retained."
+            ),
+        )
     except (ConfigurationError, ProxmoxBootstrapError, SecretError) as exc:
         return OperationResult(
             False, "Proxmox API identity bootstrap", tuple(str(exc).splitlines())
@@ -200,6 +217,31 @@ def bootstrap_proxmox_identity(path: Path) -> OperationResult:
     if identity_created:
         lines.append(f"New age identity requires an offline backup: {identity_path}")
     return OperationResult(True, "Proxmox API identity bootstrap", tuple(lines))
+
+
+def recover_proxmox_token(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+        secret_path, _, _, _, _ = ensure_secret_store()
+        private_key, _, _ = ensure_bootstrap_ssh_key()
+        result = apply_bootstrap(
+            config,
+            secret_path,
+            rotate_token=True,
+            ssh_private_key=private_key,
+        )
+    except (ConfigurationError, ProxmoxBootstrapError, SecretError) as exc:
+        return OperationResult(False, "Proxmox API token recovery", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Proxmox API token recovery",
+        (
+            f"API token replaced: {result.token_id}",
+            f"Role retained: {result.role_id}",
+            f"Replacement token stored at {secret_path}",
+            "Replacement token authenticated successfully against the Proxmox API",
+        ),
+    )
 
 
 OPERATIONS: tuple[Operation, ...] = (
@@ -244,6 +286,14 @@ OPERATIONS: tuple[Operation, ...] = (
         bootstrap_proxmox_identity,
         destructive=True,
         plan=proxmox_identity_plan,
+    ),
+    Operation(
+        "proxmox-token-recover",
+        "Recover Proxmox API token",
+        "Explicitly replace a remote token whose one-time value is unavailable.",
+        recover_proxmox_token,
+        destructive=True,
+        visible=False,
     ),
 )
 

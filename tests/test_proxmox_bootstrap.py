@@ -14,12 +14,13 @@ from homelabctl.proxmox_bootstrap import (
     PROVISIONING_PRIVILEGES,
     REMOTE_BOOTSTRAP_SCRIPT,
     ProxmoxBootstrapError,
+    ProxmoxTokenRecoveryRequired,
     apply_bootstrap,
     build_plan,
     ensure_bootstrap_ssh_key,
     safe_remote_diagnostics,
 )
-from homelabctl.secrets import ProviderSecret, SecretBundle
+from homelabctl.secrets import ProviderSecret, SecretBundle, SecretPlaceholderError
 
 
 def test_plan_uses_configured_token_and_excludes_administrator_privileges() -> None:
@@ -44,6 +45,11 @@ def test_remote_workflow_is_idempotent_and_uses_separated_token_acls() -> None:
     assert "pveum user token remove" in REMOTE_BOOTSTRAP_SCRIPT
     assert 'privileges="${privileges//,/ }"' in REMOTE_BOOTSTRAP_SCRIPT
     assert "HOMELAB_BOOTSTRAP:" in REMOTE_BOOTSTRAP_SCRIPT
+    assert "json_field_exists" in REMOTE_BOOTSTRAP_SCRIPT
+    assert "pveum role list --output-format json" in REMOTE_BOOTSTRAP_SCRIPT
+    assert "pveum user list --output-format json" in REMOTE_BOOTSTRAP_SCRIPT
+    assert 'pveum user token list "$user_id" --output-format json' in REMOTE_BOOTSTRAP_SCRIPT
+    assert "exists_in_first_column" not in REMOTE_BOOTSTRAP_SCRIPT
 
 
 def test_new_token_is_captured_to_sops_and_verified_without_entering_command(
@@ -106,6 +112,29 @@ def test_existing_token_is_reconciled_without_rotation(monkeypatch: pytest.Monke
     set_token.assert_not_called()
     verify.assert_called_once()
     assert "0" in run.call_args.args[0]
+
+
+def test_existing_token_with_placeholder_requires_explicit_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "homelabctl.proxmox_bootstrap.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=["ssh"], returncode=0, stdout='{"status":"existing"}', stderr=""
+        ),
+    )
+    monkeypatch.setattr(
+        "homelabctl.proxmox_bootstrap.load_secrets",
+        Mock(side_effect=SecretPlaceholderError("generated placeholder")),
+    )
+
+    with pytest.raises(ProxmoxTokenRecoveryRequired, match="SOPS"):
+        apply_bootstrap(
+            default_config(),
+            "secrets.enc.yaml",
+            ssh_executable="ssh",
+            sops_executable="sops",
+        )
 
 
 def test_rotation_is_explicit_in_remote_arguments(monkeypatch: pytest.MonkeyPatch) -> None:

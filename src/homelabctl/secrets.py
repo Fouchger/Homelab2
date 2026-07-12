@@ -31,6 +31,10 @@ class SecretError(RuntimeError):
     """Raised when encrypted runtime secrets are unavailable or invalid."""
 
 
+class SecretPlaceholderError(SecretError):
+    """Raised when the encrypted store still contains a generated placeholder."""
+
+
 class ProviderSecret(StrictModel):
     api_token: SecretStr = Field(description="Runtime API token; never serialize or log")
 
@@ -151,6 +155,12 @@ def load_secrets(
         raise SecretError("SOPS returned invalid decrypted YAML") from exc
     if not isinstance(decrypted, dict):
         raise SecretError("Decrypted secret document must be a YAML mapping")
+    proxmox_section = decrypted.get("proxmox")
+    proxmox_token = proxmox_section.get("api_token") if isinstance(proxmox_section, dict) else None
+    if proxmox_token in PLACEHOLDER_VALUES:
+        raise SecretPlaceholderError(
+            "The encrypted Proxmox credential still contains the generated placeholder"
+        )
     try:
         bundle = SecretBundle.model_validate(decrypted)
     except ValidationError as exc:

@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from homelabctl.models import HomelabConfig
-from homelabctl.secrets import SecretError, load_secrets, set_proxmox_token
+from homelabctl.secrets import (
+    SecretError,
+    SecretPlaceholderError,
+    load_secrets,
+    set_proxmox_token,
+)
 
 DEFAULT_ROLE_ID = "HomelabProvisioner"
 DEFAULT_BOOTSTRAP_SSH_KEY = Path("~/.ssh/proxmox_bootstrap_ed25519")
@@ -61,16 +66,27 @@ full_token_id="${user_id}!${token_name}"
 
 exec 2> >(sed 's/^/HOMELAB_BOOTSTRAP: /' >&2)
 info() { printf '==> %s\n' "$*" >&2; }
-exists_in_first_column() { awk 'NR > 1 {print $1}' | grep -Fxq -- "$1"; }
+json_field_exists() {
+  local field="$1"
+  local expected="$2"
+  FIELD="$field" EXPECTED="$expected" perl -MJSON::PP -0777 -e '
+    my $items = decode_json(<STDIN>);
+    for my $item (@{$items}) {
+      exit 0 if defined($item->{$ENV{FIELD}}) && $item->{$ENV{FIELD}} eq $ENV{EXPECTED};
+    }
+    exit 1;
+  '
+}
 
 [ "$(id -u)" -eq 0 ] || { printf 'root access is required\n' >&2; exit 1; }
 command -v pveum >/dev/null 2>&1 || { printf 'pveum is not available\n' >&2; exit 1; }
+perl -MJSON::PP -e 1 >/dev/null 2>&1 || { printf 'Perl JSON::PP is not available\n' >&2; exit 1; }
 info "Connected to Proxmox host $(hostname)"
 if command -v pveversion >/dev/null 2>&1; then
   info "Version $(pveversion | head -n 1)"
 fi
 
-if pveum role list | exists_in_first_column "$role_id"; then
+if pveum role list --output-format json | json_field_exists roleid "$role_id"; then
   info "Reconciling role ${role_id}"
   pveum role modify "$role_id" -privs "$privileges"
 else
@@ -78,7 +94,7 @@ else
   pveum role add "$role_id" -privs "$privileges"
 fi
 
-if pveum user list | exists_in_first_column "$user_id"; then
+if pveum user list --output-format json | json_field_exists userid "$user_id"; then
   info "Reconciling user ${user_id}"
   pveum user modify "$user_id" -enable 1 -comment "Managed by Homelab Control Plane"
 else
@@ -91,7 +107,7 @@ fi
 pveum acl modify / -user "$user_id" -role "$role_id" -propagate 1
 
 token_exists=0
-if pveum user token list "$user_id" | exists_in_first_column "$token_name"; then
+if pveum user token list "$user_id" --output-format json | json_field_exists tokenid "$token_name"; then
   token_exists=1
 fi
 
@@ -118,6 +134,10 @@ printf '%s\n' "$token_json"
 
 class ProxmoxBootstrapError(RuntimeError):
     """Raised when the Proxmox identity cannot be planned, created, or verified."""
+
+
+class ProxmoxTokenRecoveryRequired(ProxmoxBootstrapError):
+    """Raised when a token exists remotely but its one-time value was never captured."""
 
 
 SECRET_TOKEN_PATTERN = re.compile(r"([A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+![A-Za-z0-9_.-]+=)[^\s\"']+")
@@ -353,15 +373,19 @@ def apply_bootstrap(
     if response.get("status") == "existing":
         try:
             bundle = load_secrets(secrets_path, config=config, sops_executable=sops_executable)
+        except SecretPlaceholderError as exc:
+            raise ProxmoxTokenRecoveryRequired(
+                "The Proxmox token exists, but SOPS still contains its generated placeholder."
+            ) from exc
         except SecretError as exc:
             raise ProxmoxBootstrapError(
-                "The token already exists but its secret is not usable. Re-run with "
-                "--rotate-token to create and capture a replacement."
+                "The token exists, but the encrypted secret store could not be read safely. "
+                "Repair SOPS/age access before attempting token recovery."
             ) from exc
         api_token = bundle.proxmox.api_token.get_secret_value()
         if not api_token.startswith(f"{plan.token_id}="):
-            raise ProxmoxBootstrapError(
-                "The stored Proxmox token does not match the configured token ID"
+            raise ProxmoxTokenRecoveryRequired(
+                "The existing Proxmox token does not match the credential stored in SOPS."
             )
         verify_api_token(config, api_token)
         return BootstrapResult(False, plan.token_id, plan.role_id)

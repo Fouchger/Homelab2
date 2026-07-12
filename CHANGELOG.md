@@ -17,6 +17,10 @@ All notable changes to this project are documented in this file.
   clipboard buttons, and a Proxmox-console fallback.
 - Proxmox-side privilege argument conversion plus redacted remote SSH/`pveum` diagnostics for
   bootstrap failures.
+- JSON-based Proxmox role, user, and token discovery so bootstrap reruns reconcile existing
+  identities instead of attempting duplicate creation.
+- Guarded menu recovery when a Proxmox token exists but its one-time value is absent from SOPS;
+  rotation requires a second confirmation and leaves the user and role intact.
 
 ## [0.1.0] - 2026-07-12
 

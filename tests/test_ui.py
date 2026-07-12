@@ -6,6 +6,7 @@ from unittest.mock import Mock
 from textual.widgets import Button
 
 from homelabctl.configuration import load_config
+from homelabctl.operations import Operation, OperationResult
 from homelabctl.ui import (
     ConfigurationPage,
     ConfirmDialog,
@@ -84,3 +85,37 @@ async def test_ssh_command_dialog_copies_primary_and_fallback_commands(tmp_path:
 
         await pilot.click("#command-close")
         await pilot.pause()
+
+
+async def test_token_recovery_requires_a_second_explicit_confirmation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    operation = Operation(
+        "recovery-test",
+        "Bootstrap identity",
+        "Test recovery flow",
+        lambda path: OperationResult(True, "unused", ()),
+    )
+    initial = OperationResult(
+        False,
+        "Token recovery required",
+        ("Existing token has no captured value",),
+        recovery_operation="hidden-recovery",
+        recovery_prompt="Delete only the named token and capture its replacement?",
+    )
+    execute = Mock(return_value=initial)
+    monkeypatch.setattr("homelabctl.ui.OPERATIONS", (operation,))
+    monkeypatch.setattr("homelabctl.ui.execute", execute)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("3")
+        await pilot.pause()
+        await pilot.click("#operation-recovery-test")
+        await pilot.pause()
+        assert isinstance(app.screen, ConfirmDialog)
+
+        await pilot.click("#confirm-cancel")
+        await pilot.pause()
+
+    execute.assert_called_once_with("recovery-test", app.config_path)

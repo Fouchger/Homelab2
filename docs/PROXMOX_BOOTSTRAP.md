@@ -104,8 +104,14 @@ Normal reruns reconcile the role privileges, enabled user, user ACL, token ACL, 
 calculation. An existing token is never replaced silently. Its stored SOPS value must match the
 configured token ID and authenticate successfully.
 
+If the role, user, and token exist but SOPS still contains the generated placeholder, the menu
+shows a separate recovery confirmation. Accepting it deletes only the named token, creates its
+replacement with the same separated ACL, sends the new one-time value directly to SOPS, and verifies
+API authentication. Cancelling retains the existing token unchanged. SOPS decryption failures do
+not offer rotation; age access must be repaired first so a newly issued value cannot be lost.
+
 If the token exists but its one-time value was lost, repair the SOPS and SSH prerequisites, review
-the plan, and rotate explicitly:
+the menu recovery confirmation or rotate explicitly through the CLI:
 
 ```bash
 uv run homelabctl proxmox bootstrap \
