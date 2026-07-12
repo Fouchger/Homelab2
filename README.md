@@ -4,9 +4,9 @@ A reusable, production-minded control plane for deploying and operating Proxmox 
 It is designed for development from Windows 11 with WSL2 and execution from an Ubuntu 24.04
 Proxmox LXC.
 
-## Current milestone
+## Release status
 
-The first milestone provides a professional terminal control panel with:
+Phase 1, the control-plane foundation, is complete in `v0.1.0`. It provides:
 
 - a guided site configuration editor;
 - strict validation and rejection of unknown settings;
@@ -18,7 +18,9 @@ The first milestone provides a professional terminal control panel with:
 - both interactive and unattended command-line operation.
 
 OpenTofu provisioning and Ansible deployment actions will be added step by step. The menu only
-shows operations that are actually implemented.
+shows operations that are actually implemented. See [`DEVELOPMENT.md`](DEVELOPMENT.md) for the
+sequenced roadmap and outstanding GitHub issues, and [`CHANGELOG.md`](CHANGELOG.md) for release
+history.
 
 ## Quick start
 
