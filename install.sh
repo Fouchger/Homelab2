@@ -6,7 +6,7 @@ IFS=$'\n\t'
 readonly REPOSITORY="${HOMELAB_REPOSITORY:-Fouchger/Homelab2}"
 readonly BRANCH="${HOMELAB_BRANCH:-main}"
 readonly INSTALL_DIR="${HOMELAB_INSTALL_DIR:-${HOME}/Homelab2}"
-readonly BIN_DIR="${HOME}/.local/bin"
+readonly BIN_DIR="${HOMELAB_BIN_DIR:-/usr/local/bin}"
 
 APT_UPDATED=0
 
@@ -80,7 +80,7 @@ install_uv() {
 
   info "Installing uv"
   curl -LsSf --proto '=https' --tlsv1.2 --retry 3 https://astral.sh/uv/install.sh |
-    env UV_INSTALL_DIR="$BIN_DIR" UV_NO_MODIFY_PATH=1 sh
+    run_as_root env UV_INSTALL_DIR="$BIN_DIR" UV_NO_MODIFY_PATH=1 sh
 }
 
 install_task() {
@@ -93,7 +93,7 @@ install_task() {
 
   info "Installing Task"
   installer="$(curl -fsSL --proto '=https' --tlsv1.2 --retry 3 https://taskfile.dev/install.sh)"
-  sh -c "$installer" -- -d -b "$BIN_DIR"
+  run_as_root sh -c "$installer" -- -d -b "$BIN_DIR"
 }
 
 clone_or_update_repository() {
@@ -130,7 +130,7 @@ main() {
   is_debian_family || fail "This installer supports Debian and Ubuntu (including WSL2)."
   install_system_prerequisites
 
-  mkdir -p "$BIN_DIR"
+  run_as_root mkdir -p "$BIN_DIR"
   export PATH="${BIN_DIR}:${PATH}"
 
   install_uv
