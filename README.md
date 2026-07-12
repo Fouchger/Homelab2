@@ -28,13 +28,21 @@ Run the installer:
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Fouchger/Homelab2/main/install.sh)"
 ```
 
-Prerequisites are [uv](https://docs.astral.sh/uv/) and
-[Task](https://taskfile.dev/). From WSL2 or Ubuntu:
+The installer supports Debian, Ubuntu, and Ubuntu on WSL2. It installs the minimum system
+packages plus [uv](https://docs.astral.sh/uv/) and [Task](https://taskfile.dev/), then clones the
+repository to `~/Homelab2`. Continue with:
 
 ```bash
+cd ~/Homelab2
 task setup
 task config:init
 task menu
+```
+
+Set `HOMELAB_INSTALL_DIR` to use a different destination:
+
+```bash
+HOMELAB_INSTALL_DIR=~/control-plane bash -c "$(curl -fsSL https://raw.githubusercontent.com/Fouchger/Homelab2/main/install.sh)"
 ```
 
 The default configuration path is `config/sites/local.yaml`. It is intentionally ignored by Git.
