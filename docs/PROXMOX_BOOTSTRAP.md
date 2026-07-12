@@ -29,6 +29,11 @@ The code remains on the control-plane LXC. It opens a non-interactive SSH connec
 hostname in `proxmox.api_url`, streams a protected Bash program to that host, and runs `pveum`
 there as root. Only progress and the one-time token creation response cross the SSH connection.
 
+The privilege list is transported as a comma-delimited SSH argument and converted back to the
+space-delimited format expected by `pveum --privs` on the Proxmox host. If a remote command fails,
+the activity log shows redacted, step-specific SSH/`pveum` diagnostics; token creation output is
+never included in an error.
+
 There is one unavoidable initial trust step. In the menu:
 
 1. Open **Operations**.

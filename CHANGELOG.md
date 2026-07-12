@@ -15,6 +15,8 @@ All notable changes to this project are documented in this file.
   explicit rotation, direct SOPS capture, and authenticated API verification.
 - Control-panel SSH authorization dialog with automatic interactive `ssh-copy-id`, terminal
   clipboard buttons, and a Proxmox-console fallback.
+- Proxmox-side privilege argument conversion plus redacted remote SSH/`pveum` diagnostics for
+  bootstrap failures.
 
 ## [0.1.0] - 2026-07-12
 

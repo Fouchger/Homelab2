@@ -56,13 +56,19 @@ role_id="$2"
 token_name="$3"
 rotate_token="$4"
 privileges="$5"
+privileges="${privileges//,/ }"
 full_token_id="${user_id}!${token_name}"
 
+exec 2> >(sed 's/^/HOMELAB_BOOTSTRAP: /' >&2)
 info() { printf '==> %s\n' "$*" >&2; }
 exists_in_first_column() { awk 'NR > 1 {print $1}' | grep -Fxq -- "$1"; }
 
 [ "$(id -u)" -eq 0 ] || { printf 'root access is required\n' >&2; exit 1; }
 command -v pveum >/dev/null 2>&1 || { printf 'pveum is not available\n' >&2; exit 1; }
+info "Connected to Proxmox host $(hostname)"
+if command -v pveversion >/dev/null 2>&1; then
+  info "Version $(pveversion | head -n 1)"
+fi
 
 if pveum role list | exists_in_first_column "$role_id"; then
   info "Reconciling role ${role_id}"
@@ -112,6 +118,44 @@ printf '%s\n' "$token_json"
 
 class ProxmoxBootstrapError(RuntimeError):
     """Raised when the Proxmox identity cannot be planned, created, or verified."""
+
+
+SECRET_TOKEN_PATTERN = re.compile(r"([A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+![A-Za-z0-9_.-]+=)[^\s\"']+")
+JSON_VALUE_PATTERN = re.compile(r'("value"\s*:\s*")[^"]+(\")', re.IGNORECASE)
+UUID_PATTERN = re.compile(
+    r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+)
+SSH_ERROR_MARKERS = (
+    "Permission denied",
+    "Could not resolve hostname",
+    "Connection refused",
+    "Connection timed out",
+    "Host key verification failed",
+    "Identity file",
+    "No route to host",
+    "Connection closed",
+    "Connection reset",
+)
+
+
+def safe_remote_diagnostics(stderr: str) -> tuple[str, ...]:
+    """Return only redacted bootstrap/SSH diagnostics, never arbitrary protected output."""
+
+    safe_lines: list[str] = []
+    for raw_line in stderr.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if not line.startswith("HOMELAB_BOOTSTRAP:") and not any(
+            marker in line for marker in SSH_ERROR_MARKERS
+        ):
+            continue
+        line = SECRET_TOKEN_PATTERN.sub(r"\1[REDACTED]", line)
+        line = JSON_VALUE_PATTERN.sub(r"\1[REDACTED]\2", line)
+        line = UUID_PATTERN.sub("[REDACTED]", line)
+        safe_lines.append(line[:500])
+    return tuple(safe_lines[-12:])
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,8 +334,14 @@ def apply_bootstrap(
     except (OSError, subprocess.SubprocessError) as exc:
         raise ProxmoxBootstrapError("Unable to run the Proxmox bootstrap over SSH") from exc
     if completed.returncode != 0:
+        diagnostics = safe_remote_diagnostics(completed.stderr)
+        detail = (
+            "\nRemote diagnostics:\n" + "\n".join(diagnostics)
+            if diagnostics
+            else "\nNo safe remote diagnostics were returned."
+        )
         raise ProxmoxBootstrapError(
-            "Proxmox bootstrap failed. Review the administrator SSH connection and Proxmox logs."
+            "Proxmox bootstrap failed while running pveum over administrator SSH." + detail
         )
     try:
         response = json.loads(completed.stdout)

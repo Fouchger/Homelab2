@@ -17,6 +17,7 @@ from homelabctl.proxmox_bootstrap import (
     apply_bootstrap,
     build_plan,
     ensure_bootstrap_ssh_key,
+    safe_remote_diagnostics,
 )
 from homelabctl.secrets import ProviderSecret, SecretBundle
 
@@ -41,6 +42,8 @@ def test_remote_workflow_is_idempotent_and_uses_separated_token_acls() -> None:
     assert '-token "$full_token_id"' in REMOTE_BOOTSTRAP_SCRIPT
     assert 'if [ "$token_exists" -eq 1 ] && [ "$rotate_token" -ne 1 ]' in REMOTE_BOOTSTRAP_SCRIPT
     assert "pveum user token remove" in REMOTE_BOOTSTRAP_SCRIPT
+    assert 'privileges="${privileges//,/ }"' in REMOTE_BOOTSTRAP_SCRIPT
+    assert "HOMELAB_BOOTSTRAP:" in REMOTE_BOOTSTRAP_SCRIPT
 
 
 def test_new_token_is_captured_to_sops_and_verified_without_entering_command(
@@ -139,6 +142,37 @@ def test_remote_failure_does_not_copy_protected_output(monkeypatch: pytest.Monke
         apply_bootstrap(default_config(), "secrets.enc.yaml", ssh_executable="ssh")
 
     assert leaked not in str(captured.value)
+
+
+def test_remote_failure_reports_prefixed_diagnostics_with_secrets_redacted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "homelab@pve!control-plane=12345678-1234-1234-1234-123456789abc"
+    stderr = (
+        "HOMELAB_BOOTSTRAP: ==> Creating role HomelabProvisioner\n"
+        "HOMELAB_BOOTSTRAP: unknown privilege 'Example.Invalid'\n"
+        f"HOMELAB_BOOTSTRAP: protected value {token}\n"
+    )
+    monkeypatch.setattr(
+        "homelabctl.proxmox_bootstrap.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=["ssh"], returncode=1, stdout='{"value":"must-stay-hidden"}', stderr=stderr
+        ),
+    )
+
+    with pytest.raises(ProxmoxBootstrapError) as captured:
+        apply_bootstrap(default_config(), "secrets.enc.yaml", ssh_executable="ssh")
+
+    message = str(captured.value)
+    assert "Creating role HomelabProvisioner" in message
+    assert "unknown privilege 'Example.Invalid'" in message
+    assert "must-stay-hidden" not in message
+    assert "12345678-1234-1234-1234-123456789abc" not in message
+    assert "[REDACTED]" in message
+
+
+def test_unprefixed_arbitrary_diagnostics_are_not_displayed() -> None:
+    assert safe_remote_diagnostics("arbitrary protected output") == ()
 
 
 def test_invalid_token_identifier_is_rejected_before_ssh() -> None:
