@@ -213,6 +213,7 @@ def bootstrap_proxmox_identity(path: Path) -> OperationResult:
         f"Role reconciled: {result.role_id}",
         f"Encrypted token stored at {secret_path}",
         "Proxmox API authentication verified",
+        f"Diagnostic log: {result.diagnostic_log}",
     ]
     if identity_created:
         lines.append(f"New age identity requires an offline backup: {identity_path}")
@@ -240,6 +241,7 @@ def recover_proxmox_token(path: Path) -> OperationResult:
             f"Role retained: {result.role_id}",
             f"Replacement token stored at {secret_path}",
             "Replacement token authenticated successfully against the Proxmox API",
+            f"Diagnostic log: {result.diagnostic_log}",
         ),
     )
 

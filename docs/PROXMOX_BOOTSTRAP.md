@@ -98,6 +98,13 @@ JSON only to the local process. The one-time value is passed to `sops set --valu
 placed in a command argument, general configuration, or a plaintext file. The workflow then calls
 the authenticated Proxmox `/api2/json/version` endpoint before reporting success.
 
+Every apply also appends detailed troubleshooting information to
+`logs/proxmox-bootstrap.log`. The menu displays the absolute path after an operation. The log
+includes remote `pveum` progress, SSH exit status, API endpoint, TLS mode, HTTP status/reason, and
+sanitized error responses. Token creation output, authorization values, UUID-shaped secrets, and
+JSON token values are redacted or suppressed. On Linux the log is restricted to the current user;
+the `logs/` directory is excluded from Git.
+
 ## Safe reruns and rotation
 
 Normal reruns reconcile the role privileges, enabled user, user ACL, token ACL, and permission

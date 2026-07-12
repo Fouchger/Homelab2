@@ -77,7 +77,9 @@ def test_new_token_is_captured_to_sops_and_verified_without_entering_command(
     full_token = f"homelab@pve!control-plane={token_value}"
     assert result.created_or_rotated
     set_token.assert_called_once_with("secrets.enc.yaml", full_token, sops_executable="sops")
-    verify.assert_called_once_with(default_config(), full_token)
+    verify.assert_called_once()
+    assert verify.call_args.args == (default_config(), full_token)
+    assert verify.call_args.kwargs["diagnostic"].path == result.diagnostic_log
     command = run.call_args.args[0]
     assert "BatchMode=yes" in command
     assert "StrictHostKeyChecking=accept-new" in command
@@ -198,6 +200,37 @@ def test_remote_failure_reports_prefixed_diagnostics_with_secrets_redacted(
     assert "must-stay-hidden" not in message
     assert "12345678-1234-1234-1234-123456789abc" not in message
     assert "[REDACTED]" in message
+
+
+def test_diagnostic_log_keeps_safe_output_and_suppresses_token_response(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_value = "one-time-secret-must-not-be-logged"
+    stderr = "HOMELAB_BOOTSTRAP: ==> Creating token homelab@pve!control-plane\n"
+    monkeypatch.setattr(
+        "homelabctl.proxmox_bootstrap.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=["ssh"],
+            returncode=0,
+            stdout=json.dumps({"value": token_value}),
+            stderr=stderr,
+        ),
+    )
+    monkeypatch.setattr("homelabctl.proxmox_bootstrap.set_proxmox_token", Mock())
+    monkeypatch.setattr("homelabctl.proxmox_bootstrap.verify_api_token", Mock())
+    log_path = tmp_path / "bootstrap.log"
+
+    apply_bootstrap(
+        default_config(),
+        "secrets.enc.yaml",
+        ssh_executable="ssh",
+        diagnostic_log_path=log_path,
+    )
+
+    logged = log_path.read_text(encoding="utf-8")
+    assert "Creating token homelab@pve!control-plane" in logged
+    assert "new-token response (value suppressed)" in logged
+    assert token_value not in logged
 
 
 def test_unprefixed_arbitrary_diagnostics_are_not_displayed() -> None:

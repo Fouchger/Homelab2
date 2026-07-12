@@ -10,7 +10,9 @@ import ssl
 import subprocess
 import urllib.error
 import urllib.request
+from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from homelabctl.models import HomelabConfig
@@ -23,6 +25,7 @@ from homelabctl.secrets import (
 
 DEFAULT_ROLE_ID = "HomelabProvisioner"
 DEFAULT_BOOTSTRAP_SSH_KEY = Path("~/.ssh/proxmox_bootstrap_ed25519")
+DEFAULT_DIAGNOSTIC_LOG = Path("logs/proxmox-bootstrap.log")
 TOKEN_ID_PATTERN = re.compile(
     r"^(?P<user>[a-z_][a-z0-9_.-]{0,31})@(?P<realm>[a-z][a-z0-9_.-]{0,31})!"
     r"(?P<token>[a-zA-Z0-9_.-]{1,63})$"
@@ -135,6 +138,11 @@ printf '%s\n' "$token_json"
 class ProxmoxBootstrapError(RuntimeError):
     """Raised when the Proxmox identity cannot be planned, created, or verified."""
 
+    def __init__(self, message: str, *, diagnostic_log: Path | None = None) -> None:
+        self.diagnostic_log = diagnostic_log
+        suffix = f"\nDiagnostic log: {diagnostic_log}" if diagnostic_log is not None else ""
+        super().__init__(message + suffix)
+
 
 class ProxmoxTokenRecoveryRequired(ProxmoxBootstrapError):
     """Raised when a token exists remotely but its one-time value was never captured."""
@@ -159,7 +167,50 @@ SSH_ERROR_MARKERS = (
 )
 
 
-def safe_remote_diagnostics(stderr: str) -> tuple[str, ...]:
+def resolve_diagnostic_log_path(path: str | Path | None = None) -> Path:
+    configured = os.environ.get("HOMELAB_DIAGNOSTIC_LOG")
+    return Path(path or configured or DEFAULT_DIAGNOSTIC_LOG).expanduser().resolve()
+
+
+def redact_diagnostic_text(value: str) -> str:
+    """Remove known credential shapes before diagnostic text reaches persistent storage."""
+
+    value = SECRET_TOKEN_PATTERN.sub(r"\1[REDACTED]", value)
+    value = JSON_VALUE_PATTERN.sub(r"\1[REDACTED]\2", value)
+    value = UUID_PATTERN.sub("[REDACTED]", value)
+    value = re.sub(
+        r"(Authorization\s*:\s*PVEAPIToken=)[^\s]+",
+        r"\1[REDACTED]",
+        value,
+        flags=re.IGNORECASE,
+    )
+    return value
+
+
+class DiagnosticLog:
+    """Append-only, local, secret-redacted diagnostics for bootstrap troubleshooting."""
+
+    def __init__(self, path: str | Path | None = None) -> None:
+        self.path = resolve_diagnostic_log_path(path)
+
+    def write(self, event: str, detail: str = "") -> None:
+        timestamp = datetime.now(UTC).isoformat(timespec="seconds")
+        safe_detail = redact_diagnostic_text(detail).replace("\x00", "")
+        line = f"{timestamp} {event}"
+        if safe_detail:
+            line += f" | {safe_detail}"
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as stream:
+                stream.write(line.rstrip() + "\n")
+            if os.name != "nt":
+                self.path.chmod(0o600)
+        except OSError:
+            # Diagnostics must never prevent or change the provisioning operation.
+            return
+
+
+def safe_remote_diagnostics(stderr: str, *, limit: int | None = 12) -> tuple[str, ...]:
     """Return only redacted bootstrap/SSH diagnostics, never arbitrary protected output."""
 
     safe_lines: list[str] = []
@@ -171,11 +222,9 @@ def safe_remote_diagnostics(stderr: str) -> tuple[str, ...]:
             marker in line for marker in SSH_ERROR_MARKERS
         ):
             continue
-        line = SECRET_TOKEN_PATTERN.sub(r"\1[REDACTED]", line)
-        line = JSON_VALUE_PATTERN.sub(r"\1[REDACTED]\2", line)
-        line = UUID_PATTERN.sub("[REDACTED]", line)
+        line = redact_diagnostic_text(line)
         safe_lines.append(line[:500])
-    return tuple(safe_lines[-12:])
+    return tuple(safe_lines[-limit:] if limit is not None else safe_lines)
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,6 +258,7 @@ class BootstrapResult:
     created_or_rotated: bool
     token_id: str
     role_id: str
+    diagnostic_log: Path
 
 
 def resolve_bootstrap_ssh_key(path: str | Path | None = None) -> Path:
@@ -311,11 +361,20 @@ def apply_bootstrap(
     ssh_executable: str | None = None,
     ssh_private_key: str | Path | None = None,
     sops_executable: str | None = None,
+    diagnostic_log_path: str | Path | None = None,
 ) -> BootstrapResult:
     plan = build_plan(config, ssh_target=ssh_target, role_id=role_id, rotate_token=rotate_token)
+    diagnostic = DiagnosticLog(diagnostic_log_path)
+    diagnostic.write(
+        "bootstrap.start",
+        f"target={plan.ssh_target} user={plan.user_id} role={plan.role_id} "
+        f"token={plan.token_id} rotate={rotate_token}",
+    )
     ssh = ssh_executable or shutil.which("ssh")
     if not ssh:
-        raise ProxmoxBootstrapError("OpenSSH client is not installed or is not on PATH")
+        raise ProxmoxBootstrapError(
+            "OpenSSH client is not installed or is not on PATH", diagnostic_log=diagnostic.path
+        )
     command = [
         ssh,
         "-T",
@@ -342,6 +401,7 @@ def apply_bootstrap(
         ]
     )
     try:
+        diagnostic.write("ssh.execute", f"executable={ssh} target={plan.ssh_target}")
         completed = subprocess.run(
             command,
             input=REMOTE_BOOTSTRAP_SCRIPT,
@@ -352,7 +412,13 @@ def apply_bootstrap(
             timeout=90,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        raise ProxmoxBootstrapError("Unable to run the Proxmox bootstrap over SSH") from exc
+        diagnostic.write("ssh.exception", f"{type(exc).__name__}: {exc}")
+        raise ProxmoxBootstrapError(
+            "Unable to run the Proxmox bootstrap over SSH", diagnostic_log=diagnostic.path
+        ) from exc
+    diagnostic.write("ssh.result", f"exit_code={completed.returncode}")
+    for line in safe_remote_diagnostics(completed.stderr, limit=None):
+        diagnostic.write("ssh.stderr", line)
     if completed.returncode != 0:
         diagnostics = safe_remote_diagnostics(completed.stderr)
         detail = (
@@ -361,51 +427,74 @@ def apply_bootstrap(
             else "\nNo safe remote diagnostics were returned."
         )
         raise ProxmoxBootstrapError(
-            "Proxmox bootstrap failed while running pveum over administrator SSH." + detail
+            "Proxmox bootstrap failed while running pveum over administrator SSH." + detail,
+            diagnostic_log=diagnostic.path,
         )
     try:
         response = json.loads(completed.stdout)
     except (json.JSONDecodeError, TypeError) as exc:
+        diagnostic.write("ssh.stdout", "invalid protected JSON response (content suppressed)")
         raise ProxmoxBootstrapError(
-            "Proxmox bootstrap returned an invalid protected response"
+            "Proxmox bootstrap returned an invalid protected response",
+            diagnostic_log=diagnostic.path,
         ) from exc
+
+    diagnostic.write(
+        "ssh.stdout",
+        "existing-token response"
+        if response.get("status") == "existing"
+        else "new-token response (value suppressed)",
+    )
 
     if response.get("status") == "existing":
         try:
             bundle = load_secrets(secrets_path, config=config, sops_executable=sops_executable)
         except SecretPlaceholderError as exc:
             raise ProxmoxTokenRecoveryRequired(
-                "The Proxmox token exists, but SOPS still contains its generated placeholder."
+                "The Proxmox token exists, but SOPS still contains its generated placeholder.",
+                diagnostic_log=diagnostic.path,
             ) from exc
         except SecretError as exc:
             raise ProxmoxBootstrapError(
                 "The token exists, but the encrypted secret store could not be read safely. "
-                "Repair SOPS/age access before attempting token recovery."
+                "Repair SOPS/age access before attempting token recovery.",
+                diagnostic_log=diagnostic.path,
             ) from exc
         api_token = bundle.proxmox.api_token.get_secret_value()
         if not api_token.startswith(f"{plan.token_id}="):
             raise ProxmoxTokenRecoveryRequired(
-                "The existing Proxmox token does not match the credential stored in SOPS."
+                "The existing Proxmox token does not match the credential stored in SOPS.",
+                diagnostic_log=diagnostic.path,
             )
-        verify_api_token(config, api_token)
-        return BootstrapResult(False, plan.token_id, plan.role_id)
+        diagnostic.write("sops.read", "existing Proxmox token loaded")
+        verify_api_token(config, api_token, diagnostic=diagnostic)
+        diagnostic.write("bootstrap.complete", "existing identity reconciled and verified")
+        return BootstrapResult(False, plan.token_id, plan.role_id, diagnostic.path)
 
     token_value = response.get("value")
     if not isinstance(token_value, str) or not token_value:
-        raise ProxmoxBootstrapError("Proxmox did not return the one-time API token value")
+        raise ProxmoxBootstrapError(
+            "Proxmox did not return the one-time API token value", diagnostic_log=diagnostic.path
+        )
     api_token = f"{plan.token_id}={token_value}"
     try:
         set_proxmox_token(secrets_path, api_token, sops_executable=sops_executable)
     except SecretError as exc:
+        diagnostic.write("sops.write", f"failed: {type(exc).__name__}: {exc}")
         raise ProxmoxBootstrapError(
             "The token was created, but its secret could not be saved to SOPS. "
-            "Rotate the token after repairing the encrypted secret workflow."
+            "Rotate the token after repairing the encrypted secret workflow.",
+            diagnostic_log=diagnostic.path,
         ) from exc
-    verify_api_token(config, api_token)
-    return BootstrapResult(True, plan.token_id, plan.role_id)
+    diagnostic.write("sops.write", "new Proxmox token stored")
+    verify_api_token(config, api_token, diagnostic=diagnostic)
+    diagnostic.write("bootstrap.complete", "identity created or rotated and verified")
+    return BootstrapResult(True, plan.token_id, plan.role_id, diagnostic.path)
 
 
-def verify_api_token(config: HomelabConfig, api_token: str) -> None:
+def verify_api_token(
+    config: HomelabConfig, api_token: str, *, diagnostic: DiagnosticLog | None = None
+) -> None:
     endpoint = str(config.proxmox.api_url).rstrip("/") + "/api2/json/version"
     request = urllib.request.Request(
         endpoint,
@@ -416,11 +505,36 @@ def verify_api_token(config: HomelabConfig, api_token: str) -> None:
     if not config.proxmox.verify_tls:
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
+    if diagnostic is not None:
+        diagnostic.write(
+            "api.request", f"method=GET endpoint={endpoint} verify_tls={config.proxmox.verify_tls}"
+        )
     try:
         with urllib.request.urlopen(request, timeout=10, context=context) as response:
+            if diagnostic is not None:
+                diagnostic.write(
+                    "api.response",
+                    f"status={response.status} reason={getattr(response, 'reason', '')}",
+                )
             if response.status != 200:
-                raise ProxmoxBootstrapError("Proxmox API token verification did not succeed")
-    except (OSError, urllib.error.URLError) as exc:
+                raise ProxmoxBootstrapError(
+                    "Proxmox API token verification did not succeed",
+                    diagnostic_log=diagnostic.path if diagnostic else None,
+                )
+    except urllib.error.HTTPError as exc:
+        body = ""
+        with suppress(OSError, AttributeError):
+            body = exc.read(4096).decode("utf-8", errors="replace")
+        if diagnostic is not None:
+            diagnostic.write("api.http_error", f"status={exc.code} reason={exc.reason} body={body}")
         raise ProxmoxBootstrapError(
-            "Proxmox API token verification failed. Check TLS trust, endpoint, and role permissions."
+            f"Proxmox API token verification failed with HTTP {exc.code} ({exc.reason}).",
+            diagnostic_log=diagnostic.path if diagnostic else None,
+        ) from exc
+    except (OSError, urllib.error.URLError) as exc:
+        if diagnostic is not None:
+            diagnostic.write("api.exception", f"{type(exc).__name__}: {exc}")
+        raise ProxmoxBootstrapError(
+            "Proxmox API token verification failed. Check TLS trust, endpoint, and role permissions.",
+            diagnostic_log=diagnostic.path if diagnostic else None,
         ) from exc

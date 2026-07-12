@@ -21,6 +21,8 @@ All notable changes to this project are documented in this file.
   identities instead of attempting duplicate creation.
 - Guarded menu recovery when a Proxmox token exists but its one-time value is absent from SOPS;
   rotation requires a second confirmation and leaves the user and role intact.
+- Persistent, Git-ignored Proxmox bootstrap diagnostics with sanitized SSH/`pveum` output and API
+  verification status, reason, and error details.
 
 ## [0.1.0] - 2026-07-12
 
