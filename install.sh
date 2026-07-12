@@ -7,6 +7,7 @@ readonly REPOSITORY="${HOMELAB_REPOSITORY:-Fouchger/Homelab2}"
 readonly BRANCH="${HOMELAB_BRANCH:-main}"
 readonly INSTALL_DIR="${HOMELAB_INSTALL_DIR:-${HOME}/Homelab2}"
 readonly BIN_DIR="${HOMELAB_BIN_DIR:-/usr/local/bin}"
+readonly SOPS_VERSION="${HOMELAB_SOPS_VERSION:-3.13.2}"
 
 APT_UPDATED=0
 
@@ -60,6 +61,8 @@ install_system_prerequisites() {
 
   command -v curl >/dev/null 2>&1 || missing_packages+=(curl)
   command -v git >/dev/null 2>&1 || missing_packages+=(git)
+  command -v age >/dev/null 2>&1 || missing_packages+=(age)
+  command -v ssh >/dev/null 2>&1 || missing_packages+=(openssh-client)
   dpkg-query -W -f='${Status}' ca-certificates 2>/dev/null | grep -Fq 'install ok installed' || missing_packages+=(ca-certificates)
 
   if [ "${#missing_packages[@]}" -eq 0 ]; then
@@ -70,6 +73,37 @@ install_system_prerequisites() {
   apt_update_once
   info "Installing system prerequisites: ${missing_packages[*]}"
   run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing_packages[@]}"
+}
+
+install_sops() {
+  local architecture
+  local binary_name
+  local temporary_directory
+
+  if command -v sops >/dev/null 2>&1; then
+    info "SOPS is already installed"
+    return
+  fi
+
+  case "$(uname -m)" in
+    x86_64 | amd64) architecture="amd64" ;;
+    aarch64 | arm64) architecture="arm64" ;;
+    *) fail "SOPS installation does not support architecture: $(uname -m)" ;;
+  esac
+
+  binary_name="sops-v${SOPS_VERSION}.linux.${architecture}"
+  temporary_directory="$(mktemp -d)"
+  info "Installing SOPS ${SOPS_VERSION}"
+  curl -fsSLo "${temporary_directory}/${binary_name}" --proto '=https' --tlsv1.2 --retry 3 \
+    "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/${binary_name}"
+  curl -fsSLo "${temporary_directory}/checksums.txt" --proto '=https' --tlsv1.2 --retry 3 \
+    "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.checksums.txt"
+  (
+    cd "$temporary_directory"
+    sha256sum -c checksums.txt --ignore-missing
+  )
+  run_as_root install -m 0755 -- "${temporary_directory}/${binary_name}" "${BIN_DIR}/sops"
+  rm -rf -- "$temporary_directory"
 }
 
 install_uv() {
@@ -135,6 +169,7 @@ main() {
 
   install_uv
   install_task
+  install_sops
   clone_or_update_repository
 
   printf '\nInstallation complete.\n\n'

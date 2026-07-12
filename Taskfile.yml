@@ -2,6 +2,7 @@ version: '3'
 
 vars:
   CONFIG: '{{.CONFIG | default "config/sites/local.yaml"}}'
+  SECRETS: '{{.SECRETS | default "config/secrets/local.enc.yaml"}}'
 
 tasks:
   default:
@@ -47,7 +48,34 @@ tasks:
   doctor:
     desc: Check control-plane readiness
     cmds:
-      - uv run --locked --no-dev homelabctl doctor --config "{{.CONFIG}}"
+      - uv run --locked --no-dev homelabctl doctor --config "{{.CONFIG}}" --secrets "{{.SECRETS}}"
+
+  secrets:init:
+    desc: Initialize a SOPS-encrypted secret file
+    requires:
+      vars: [AGE_RECIPIENT]
+    cmds:
+      - uv run --locked --no-dev homelabctl secrets init --age-recipient "{{.AGE_RECIPIENT}}" --secrets "{{.SECRETS}}"
+
+  secrets:edit:
+    desc: Edit runtime credentials through SOPS
+    cmds:
+      - uv run --locked --no-dev homelabctl secrets edit --secrets "{{.SECRETS}}"
+
+  secrets:check:
+    desc: Decrypt and validate runtime credentials without displaying them
+    cmds:
+      - uv run --locked --no-dev homelabctl secrets check --config "{{.CONFIG}}" --secrets "{{.SECRETS}}"
+
+  proxmox:bootstrap:plan:
+    desc: Preview the Proxmox API identity bootstrap
+    cmds:
+      - uv run --locked --no-dev homelabctl proxmox bootstrap --config "{{.CONFIG}}" --secrets "{{.SECRETS}}"
+
+  proxmox:bootstrap:
+    desc: Apply the planned Proxmox API identity bootstrap over administrator SSH
+    cmds:
+      - uv run --locked --no-dev homelabctl proxmox bootstrap --config "{{.CONFIG}}" --secrets "{{.SECRETS}}" --apply
 
   schema:
     desc: Regenerate the site JSON Schema

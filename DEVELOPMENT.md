@@ -8,7 +8,7 @@ acceptance criteria, and implementation discussion for each active workstream.
 | Release | Focus | Status |
 |---|---|---|
 | `v0.1.0` | Phase 1: control-plane foundation | Complete |
-| `v0.2.0` | Phase 2: secure provisioning foundation | Planned |
+| `v0.2.0` | Phase 2: secure provisioning foundation | In progress |
 | `v0.3.0` | Phase 3: Proxmox and Cloudflare provisioning | Planned |
 | `v0.4.0` | Phase 4: system configuration and guarded operations | Planned |
 
@@ -34,15 +34,17 @@ formatting, linting, and all 14 automated tests.
 |---|---|---|---|
 | 1 | CLI and clean-installer acceptance coverage | [#3](https://github.com/Fouchger/Homelab2/issues/3) | Phase 1 |
 | 2 | SOPS and age secret management | [#4](https://github.com/Fouchger/Homelab2/issues/4) | Phase 1 |
-| 3 | OpenTofu project and state strategy | [#5](https://github.com/Fouchger/Homelab2/issues/5) | #4 |
-| 4 | Proxmox resource provisioning | [#6](https://github.com/Fouchger/Homelab2/issues/6) | #4, #5 |
-| 5 | Multi-domain Cloudflare DNS provisioning | [#7](https://github.com/Fouchger/Homelab2/issues/7) | #4, #5 |
-| 6 | Ansible inventory and baseline configuration | [#8](https://github.com/Fouchger/Homelab2/issues/8) | #6 |
-| 7 | Guarded plan and apply operations | [#9](https://github.com/Fouchger/Homelab2/issues/9) | #5, #6, #7, #8 |
+| 3 | Proxmox API identity bootstrap | [#10](https://github.com/Fouchger/Homelab2/issues/10) | #4 |
+| 4 | OpenTofu project and state strategy | [#5](https://github.com/Fouchger/Homelab2/issues/5) | #4 |
+| 5 | Proxmox resource provisioning | [#6](https://github.com/Fouchger/Homelab2/issues/6) | #4, #5, #10 |
+| 6 | Multi-domain Cloudflare DNS provisioning | [#7](https://github.com/Fouchger/Homelab2/issues/7) | #4, #5 |
+| 7 | Ansible inventory and baseline configuration | [#8](https://github.com/Fouchger/Homelab2/issues/8) | #6 |
+| 8 | Guarded plan and apply operations | [#9](https://github.com/Fouchger/Homelab2/issues/9) | #5, #6, #7, #8 |
 
-Issues #4 and #5 form the Phase 2 security and infrastructure foundation. Proxmox and Cloudflare
-can then progress independently. Ansible follows usable Proxmox outputs, and control-panel apply
-operations come last so the interface exposes only workflows that are already safe and tested.
+Issues #4, #10, and #5 form the Phase 2 security, API identity, and infrastructure foundation.
+Proxmox and Cloudflare can then progress independently. Ansible follows usable Proxmox outputs,
+and control-panel apply operations come last so the interface exposes only workflows that are
+already safe and tested.
 
 ## Engineering rules
 

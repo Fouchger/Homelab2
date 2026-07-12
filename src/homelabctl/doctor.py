@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import platform
 import shutil
 import sys
@@ -10,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from homelabctl.configuration import ConfigurationError, load_config, resolve_config_path
+from homelabctl.secrets import SecretError, load_secrets, resolve_secrets_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,15 +28,19 @@ TOOLS: tuple[tuple[str, str, bool], ...] = (
     ("git", "Source control", True),
     ("task", "Task runner", True),
     ("uv", "Python environment", True),
+    ("ssh", "Administrator bootstrap connection", True),
     ("tofu", "Infrastructure provisioning", False),
     ("ansible-playbook", "System configuration", False),
-    ("sops", "Secret file encryption", False),
-    ("age", "Secret key encryption", False),
+    ("sops", "Secret file encryption", True),
+    ("age", "Secret key encryption", True),
 )
 
 
-def run_checks(config_path: str | Path | None = None) -> list[CheckResult]:
+def run_checks(
+    config_path: str | Path | None = None, secrets_path: str | Path | None = None
+) -> list[CheckResult]:
     path = resolve_config_path(config_path)
+    config = None
     results = [
         CheckResult(
             "Python",
@@ -70,17 +74,31 @@ def run_checks(config_path: str | Path | None = None) -> list[CheckResult]:
             )
         )
 
-    secret_present = bool(os.environ.get("PROXMOX_VE_API_TOKEN"))
-    results.append(
-        CheckResult(
-            "Proxmox credential",
-            "pass" if secret_present else "warn",
-            "PROXMOX_VE_API_TOKEN is set"
-            if secret_present
-            else "PROXMOX_VE_API_TOKEN is not set (needed for provisioning)",
-            required=False,
+    encrypted_path = resolve_secrets_path(secrets_path)
+    if not encrypted_path.is_file():
+        results.append(
+            CheckResult(
+                "Encrypted credentials",
+                "warn",
+                f"Not initialized: {encrypted_path}",
+                required=False,
+            )
         )
-    )
+    else:
+        try:
+            bundle = load_secrets(encrypted_path, config=config)
+        except SecretError as exc:
+            results.append(CheckResult("Encrypted credentials", "fail", str(exc), required=False))
+        else:
+            providers = ", ".join(bundle.provider_names())
+            results.append(
+                CheckResult(
+                    "Encrypted credentials",
+                    "pass",
+                    f"Decrypted and validated for: {providers}",
+                    required=False,
+                )
+            )
     return results
 
 

@@ -54,6 +54,7 @@ confirmation dialog.
 ## Secrets
 
 The normal configuration object deliberately has no password or token-secret fields. Token IDs,
-file paths, and public settings are safe to store, but actual secret material must come from the
-runtime secret provider. SOPS and age will become that provider in a later milestone.
-
+file paths, and public settings are safe to store, but actual secret material comes from the
+SOPS/age runtime provider. It validates encrypted metadata before decrypting the document in
+memory and prints only readiness status and provider names. See [`SECRETS.md`](SECRETS.md) for the
+operator workflow.

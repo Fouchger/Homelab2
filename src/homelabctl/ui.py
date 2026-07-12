@@ -89,8 +89,8 @@ class OverviewPage(VerticalScroll):
             yield Button("Run readiness check", id="quick-doctor")
         yield Static("Deployment modules", classes="section-title")
         yield Static(
-            "OpenTofu provisioning and Ansible deployment actions will appear in Operations "
-            "as those modules are added. The control panel only exposes implemented actions.",
+            "Encrypted-secret setup and the guarded Proxmox API identity bootstrap are available "
+            "in Operations. OpenTofu and Ansible actions will appear as they are implemented.",
             classes="notice",
         )
 
@@ -374,15 +374,15 @@ class HelpPage(VerticalScroll):
         )
         yield Static("Configuration policy", classes="section-title")
         yield Static(
-            "General settings contain no passwords or token secrets. The Proxmox token secret "
-            "is supplied at runtime through PROXMOX_VE_API_TOKEN and will later be sourced from "
-            "a SOPS-encrypted secret file.",
+            "General settings contain no passwords or token secrets. Proxmox and Cloudflare "
+            "tokens are decrypted from the SOPS/age secret file only when an automation "
+            "operation needs them.",
             classes="body-copy",
         )
         yield Static("Change safety", classes="section-title")
         yield Static(
-            "Unknown configuration keys fail validation. Files are replaced atomically. Future "
-            "apply and destroy operations use a confirmation dialog and will present a plan first.",
+            "Unknown configuration keys fail validation. Files are replaced atomically. Actions "
+            "that change local security state or Proxmox always present a plan and confirmation.",
             classes="body-copy",
         )
 
@@ -458,7 +458,13 @@ class ControlPlaneApp(App[None]):
     .feedback-success { color: $hl-success; }
     .form-actions { height: 4; align-horizontal: right; }
     .form-actions Button { margin-left: 1; }
-    #operations-grid { grid-size: 3 1; grid-columns: 1fr 1fr 1fr; grid-gutter: 1; height: 11; }
+    #operations-grid {
+        grid-size: 3 2;
+        grid-columns: 1fr 1fr 1fr;
+        grid-rows: 11 11;
+        grid-gutter: 1;
+        height: 23;
+    }
     .operation-title { height: 2; text-style: bold; color: $hl-text; }
     .operation-card Button { dock: bottom; width: 1fr; }
     #activity-log { height: 1fr; min-height: 12; background: #050b13; border: solid $hl-border; padding: 1; }
@@ -543,6 +549,25 @@ class ControlPlaneApp(App[None]):
         log = self.query_one("#activity-log", RichLog)
         operation = next(item for item in OPERATIONS if item.identifier == identifier)
         log.write(f"[bold cyan]▶ {operation.title}[/bold cyan]")
+        if operation.destructive:
+            preview = (
+                await asyncio.to_thread(operation.plan, self.config_path)
+                if operation.plan is not None
+                else OperationResult(True, f"{operation.title} plan", (operation.description,))
+            )
+            log.write("[bold yellow]Plan[/bold yellow]")
+            for line in preview.lines:
+                log.write(line)
+            if not preview.succeeded:
+                log.write("[red]Plan needs attention; no changes were made.[/red]\n")
+                self.notify(f"{preview.title}: needs attention", severity="warning")
+                return
+            confirmed = await self.push_screen_wait(
+                ConfirmDialog(f"Confirm: {operation.title}", "\n".join(preview.lines))
+            )
+            if not confirmed:
+                log.write("[yellow]Cancelled; no changes were made.[/yellow]\n")
+                return
         result: OperationResult = await asyncio.to_thread(execute, identifier, self.config_path)
         color = "green" if result.succeeded else "red"
         for line in result.lines:

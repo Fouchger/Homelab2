@@ -6,7 +6,8 @@ Proxmox LXC.
 
 ## Release status
 
-Phase 1, the control-plane foundation, is complete in `v0.1.0`. It provides:
+Phase 1, the control-plane foundation, is complete in `v0.1.0`. Phase 2 secure provisioning work
+is in progress. The completed foundation provides:
 
 - a guided site configuration editor;
 - strict validation and rejection of unknown settings;
@@ -62,6 +63,17 @@ uv run homelabctl doctor --config config/sites/local.yaml
 uv run homelabctl show --config config/sites/local.yaml
 ```
 
+The preferred operator workflow is the control-panel menu:
+
+```bash
+task menu
+```
+
+Its Operations page initializes encrypted secrets, prepares the dedicated Proxmox SSH public key,
+and performs the plan/confirm/apply API identity bootstrap. CLI and Task commands remain available
+for unattended operation and recovery. See [`docs/SECRETS.md`](docs/SECRETS.md) for identity backup,
+recovery, and rotation.
+
 ## Configuration policy
 
 - Reusable defaults and examples are committed.
@@ -69,8 +81,8 @@ uv run homelabctl show --config config/sites/local.yaml
 - `site.domain` is the internal DNS suffix; `cloudflare.domains` accepts zero, one, or many
   external domains.
 - Passwords and token secrets are never part of the general site model.
-- The Proxmox token secret is currently supplied using `PROXMOX_VE_API_TOKEN`.
-- SOPS and age encrypted secret files will be added in the secrets milestone.
+- Proxmox and Cloudflare token secrets are loaded from SOPS/age-encrypted YAML only at runtime.
+- The age identity is stored outside the repository and must have an offline encrypted backup.
 - OpenTofu state, plan files, runtime logs, and generated artifacts are ignored.
 
 The configuration structure is documented in
@@ -85,10 +97,16 @@ task configure         Open the guided configuration editor
 task config:validate   Validate site configuration
 task config:show       Show effective non-secret settings
 task doctor            Check local readiness
+task secrets:init      Initialize encrypted credential placeholders
+task secrets:edit      Edit credentials through SOPS
+task secrets:check     Decrypt and validate without displaying values
+task proxmox:bootstrap:plan  Preview API identity changes
+task proxmox:bootstrap       Create/reconcile the API user, role, ACL, and token
 task check             Run formatting, linting, tests, and config validation
 ```
 
-See [`docs/CONTROL_PANEL.md`](docs/CONTROL_PANEL.md) for operation and extension guidance.
+See [`docs/CONTROL_PANEL.md`](docs/CONTROL_PANEL.md) for operation and extension guidance and
+[`docs/PROXMOX_BOOTSTRAP.md`](docs/PROXMOX_BOOTSTRAP.md) for the administrator bootstrap boundary.
 
 ## Security boundary
 

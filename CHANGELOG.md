@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+
+- SOPS/age encrypted runtime-secret initialization, editing, validation, and readiness checks.
+- Strict in-memory Proxmox and Cloudflare credential loading with plaintext-file refusal and
+  redaction-safe failures.
+- Age identity backup, recovery, recipient rotation, and provider-token rotation guidance.
+- Installer support for age and checksum-verified SOPS binaries.
+- Planned, idempotent Proxmox API role/user/ACL/token bootstrap with separated-token permissions,
+  explicit rotation, direct SOPS capture, and authenticated API verification.
+
 ## [0.1.0] - 2026-07-12
 
 ### Added

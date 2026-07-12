@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,6 +16,19 @@ from homelabctl.configuration import (
     resolve_config_path,
 )
 from homelabctl.doctor import checks_succeeded, run_checks
+from homelabctl.proxmox_bootstrap import (
+    ProxmoxBootstrapError,
+    apply_bootstrap,
+    build_plan,
+    ensure_bootstrap_ssh_key,
+    resolve_bootstrap_ssh_key,
+)
+from homelabctl.secrets import (
+    SecretError,
+    ensure_secret_store,
+    resolve_age_identity_path,
+    resolve_secrets_path,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +45,7 @@ class Operation:
     description: str
     run: Callable[[Path], OperationResult]
     destructive: bool = False
+    plan: Callable[[Path], OperationResult] | None = None
 
 
 def validate_configuration(path: Path) -> OperationResult:
@@ -69,6 +84,114 @@ def configuration_summary(path: Path) -> OperationResult:
     return OperationResult(True, "Configuration summary", tuple(rendered.rstrip().splitlines()))
 
 
+def secret_store_plan(path: Path) -> OperationResult:
+    return OperationResult(
+        True,
+        "Encrypted secret initialization plan",
+        (
+            f"Age identity: create if absent at {resolve_age_identity_path()}",
+            f"Encrypted credentials: create if absent at {resolve_secrets_path()}",
+            "SOPS recipient policy: create if absent at the repository root",
+            "Existing identities and encrypted credentials will not be replaced",
+            "The age identity must be backed up offline after creation",
+        ),
+    )
+
+
+def initialize_secret_store(path: Path) -> OperationResult:
+    try:
+        secret_path, identity_path, recipient, secret_created, identity_created = (
+            ensure_secret_store()
+        )
+    except SecretError as exc:
+        return OperationResult(
+            False, "Encrypted secret initialization", tuple(str(exc).splitlines())
+        )
+    return OperationResult(
+        True,
+        "Encrypted secret initialization",
+        (
+            f"Age identity: {'created' if identity_created else 'already present'} at {identity_path}",
+            f"Public recipient: {recipient}",
+            f"Encrypted credentials: {'created' if secret_created else 'already present'} at {secret_path}",
+            "Back up the age identity offline before provisioning infrastructure",
+        ),
+    )
+
+
+def proxmox_identity_plan(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+        plan = build_plan(config)
+    except (ConfigurationError, ProxmoxBootstrapError) as exc:
+        return OperationResult(False, "Proxmox API identity plan", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Proxmox API identity plan",
+        (
+            f"SSH private key: {resolve_bootstrap_ssh_key()}",
+            "Prerequisite: its public key is authorized for root on the Proxmox host",
+            *plan.lines(),
+        ),
+    )
+
+
+def proxmox_ssh_plan(path: Path) -> OperationResult:
+    return OperationResult(
+        True,
+        "Proxmox SSH preparation plan",
+        (
+            f"Dedicated key: create if absent at {resolve_bootstrap_ssh_key()}",
+            "Existing private keys will not be replaced",
+            "Only the public key will be displayed in the activity log",
+            "You will authorize that public key once through the Proxmox console",
+        ),
+    )
+
+
+def prepare_proxmox_ssh(path: Path) -> OperationResult:
+    try:
+        private_key, public_key, created = ensure_bootstrap_ssh_key()
+    except ProxmoxBootstrapError as exc:
+        return OperationResult(False, "Proxmox SSH preparation", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Proxmox SSH preparation",
+        (
+            f"Dedicated SSH key: {'created' if created else 'already present'} at {private_key}",
+            "Public key (safe to copy):",
+            public_key,
+            "Run once in the Proxmox web shell or physical console:",
+            "install -d -m 700 /root/.ssh && "
+            f"printf '%s\\n' {shlex.quote(public_key)} >> /root/.ssh/authorized_keys && "
+            "chmod 600 /root/.ssh/authorized_keys",
+            "After authorization, run the Proxmox API identity bootstrap from this menu",
+        ),
+    )
+
+
+def bootstrap_proxmox_identity(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+        secret_path, identity_path, _, _, identity_created = ensure_secret_store()
+        private_key, _, _ = ensure_bootstrap_ssh_key()
+        result = apply_bootstrap(config, secret_path, ssh_private_key=private_key)
+    except (ConfigurationError, ProxmoxBootstrapError, SecretError) as exc:
+        return OperationResult(
+            False, "Proxmox API identity bootstrap", tuple(str(exc).splitlines())
+        )
+    action = "created or rotated" if result.created_or_rotated else "reconciled"
+    lines = [
+        f"API identity {action}: {result.token_id}",
+        f"Role reconciled: {result.role_id}",
+        f"Encrypted token stored at {secret_path}",
+        "Proxmox API authentication verified",
+    ]
+    if identity_created:
+        lines.append(f"New age identity requires an offline backup: {identity_path}")
+    return OperationResult(True, "Proxmox API identity bootstrap", tuple(lines))
+
+
 OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "validate",
@@ -79,7 +202,7 @@ OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "doctor",
         "Check system readiness",
-        "Inspect the local toolchain, configuration, and provisioning credential.",
+        "Inspect the local toolchain, configuration, and encrypted provisioning credentials.",
         system_readiness,
     ),
     Operation(
@@ -87,6 +210,30 @@ OPERATIONS: tuple[Operation, ...] = (
         "Preview effective settings",
         "Display the exact non-secret values automation will consume.",
         configuration_summary,
+    ),
+    Operation(
+        "secrets-init",
+        "Initialize encrypted secrets",
+        "Create the age identity, SOPS policy, and encrypted credential store.",
+        initialize_secret_store,
+        destructive=True,
+        plan=secret_store_plan,
+    ),
+    Operation(
+        "proxmox-ssh",
+        "Prepare Proxmox SSH access",
+        "Create a dedicated key and show the public key to authorize on Proxmox.",
+        prepare_proxmox_ssh,
+        destructive=True,
+        plan=proxmox_ssh_plan,
+    ),
+    Operation(
+        "proxmox-bootstrap",
+        "Bootstrap Proxmox API identity",
+        "Plan, confirm, and remotely create the Proxmox user, role, ACL, and token.",
+        bootstrap_proxmox_identity,
+        destructive=True,
+        plan=proxmox_identity_plan,
     ),
 )
 

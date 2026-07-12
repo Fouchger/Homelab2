@@ -1,6 +1,7 @@
 # Local configuration and credentials
 config/sites/*.yaml
 !config/sites/.gitkeep
+config/secrets/local.enc.yaml
 .env
 .env.*
 !.env.example
@@ -34,4 +35,3 @@ Thumbs.db
 .cache/
 logs/
 artifacts/
-

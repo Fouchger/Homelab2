@@ -21,6 +21,20 @@ from homelabctl.configuration import (
     write_schema,
 )
 from homelabctl.doctor import checks_succeeded, run_checks
+from homelabctl.proxmox_bootstrap import (
+    DEFAULT_ROLE_ID,
+    ProxmoxBootstrapError,
+    apply_bootstrap,
+    build_plan,
+)
+from homelabctl.secrets import (
+    SecretError,
+    edit_secret_file,
+    initialize_secret_file,
+    load_secrets,
+    resolve_secrets_path,
+    write_sops_policy,
+)
 
 
 def _add_config_argument(parser: argparse.ArgumentParser) -> None:
@@ -28,6 +42,14 @@ def _add_config_argument(parser: argparse.ArgumentParser) -> None:
         "--config",
         type=Path,
         help="site configuration path (default: HOMELAB_CONFIG or config/sites/local.yaml)",
+    )
+
+
+def _add_secrets_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--secrets",
+        type=Path,
+        help="encrypted secret path (default: HOMELAB_SECRETS or config/secrets/local.enc.yaml)",
     )
 
 
@@ -61,6 +83,49 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = subcommands.add_parser("doctor", help="check control-plane readiness")
     _add_config_argument(doctor)
+    _add_secrets_argument(doctor)
+
+    secrets = subcommands.add_parser("secrets", help="manage SOPS-encrypted runtime credentials")
+    secret_commands = secrets.add_subparsers(dest="secrets_command", required=True)
+
+    secrets_init = secret_commands.add_parser(
+        "init", help="create an encrypted placeholder file for an age recipient"
+    )
+    _add_secrets_argument(secrets_init)
+    secrets_init.add_argument("--age-recipient", required=True, help="public age recipient")
+    secrets_init.add_argument("--force", action="store_true", help="replace an existing file")
+
+    secrets_edit = secret_commands.add_parser("edit", help="edit credentials through SOPS")
+    _add_secrets_argument(secrets_edit)
+
+    secrets_check = secret_commands.add_parser(
+        "check", help="decrypt and validate credentials without displaying them"
+    )
+    _add_config_argument(secrets_check)
+    _add_secrets_argument(secrets_check)
+
+    proxmox = subcommands.add_parser("proxmox", help="manage Proxmox bootstrap operations")
+    proxmox_commands = proxmox.add_subparsers(dest="proxmox_command", required=True)
+    proxmox_bootstrap = proxmox_commands.add_parser(
+        "bootstrap", help="plan or apply the API user, role, ACL, and token bootstrap"
+    )
+    _add_config_argument(proxmox_bootstrap)
+    _add_secrets_argument(proxmox_bootstrap)
+    proxmox_bootstrap.add_argument(
+        "--ssh-target", help="administrator SSH target (default: root@Proxmox-host)"
+    )
+    proxmox_bootstrap.add_argument(
+        "--ssh-private-key", type=Path, help="dedicated administrator SSH private key"
+    )
+    proxmox_bootstrap.add_argument("--role", default=DEFAULT_ROLE_ID, help="custom Proxmox role ID")
+    proxmox_bootstrap.add_argument(
+        "--apply", action="store_true", help="apply the displayed bootstrap plan"
+    )
+    proxmox_bootstrap.add_argument(
+        "--rotate-token",
+        action="store_true",
+        help="explicitly replace an existing token and update SOPS",
+    )
 
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
     schema.add_argument("--output", type=Path, default=Path("config/schema/site.schema.json"))
@@ -77,8 +142,8 @@ def _show_config(config_path: Path, *, as_json: bool) -> int:
     return 0
 
 
-def _doctor(config_path: Path, console: Console) -> int:
-    results = run_checks(config_path)
+def _doctor(config_path: Path, secrets_path: Path | None, console: Console) -> int:
+    results = run_checks(config_path, secrets_path)
     table = Table(title="Control-plane readiness", header_style="bold cyan")
     table.add_column("Status", width=8)
     table.add_column("Check", style="bold")
@@ -90,6 +155,59 @@ def _doctor(config_path: Path, console: Console) -> int:
         )
     console.print(table)
     return 0 if checks_succeeded(results) else 1
+
+
+def _secrets_init(path: Path | None, recipient: str, force: bool, console: Console) -> int:
+    secret_path = initialize_secret_file(path, age_recipient=recipient, force=force)
+    policy_path, created = write_sops_policy(recipient, start=secret_path.parent)
+    console.print(f"[green]Created encrypted secret file:[/] {secret_path}")
+    console.print(
+        f"[green]Created SOPS recipient policy:[/] {policy_path}"
+        if created
+        else f"[yellow]Kept existing SOPS recipient policy:[/] {policy_path}"
+    )
+    console.print("Run `homelabctl secrets edit` to replace the encrypted placeholders.")
+    return 0
+
+
+def _secrets_check(config_path: Path, secrets_path: Path | None, console: Console) -> int:
+    config = load_config(config_path)
+    bundle = load_secrets(secrets_path, config=config)
+    providers = ", ".join(bundle.provider_names())
+    console.print(
+        f"[green]Encrypted secrets ready:[/] {providers} | {resolve_secrets_path(secrets_path)}"
+    )
+    return 0
+
+
+def _proxmox_bootstrap(args: argparse.Namespace, console: Console) -> int:
+    config = load_config(resolve_config_path(args.config))
+    plan = build_plan(
+        config,
+        ssh_target=args.ssh_target,
+        role_id=args.role,
+        rotate_token=args.rotate_token,
+    )
+    console.print("[bold cyan]Proxmox API identity bootstrap plan[/]")
+    for line in plan.lines():
+        console.print(f"- {line}")
+    if not args.apply:
+        console.print("[yellow]Plan only. Re-run with --apply to make these changes.[/]")
+        return 0
+    result = apply_bootstrap(
+        config,
+        args.secrets,
+        ssh_target=args.ssh_target,
+        role_id=args.role,
+        rotate_token=args.rotate_token,
+        ssh_private_key=args.ssh_private_key,
+    )
+    action = "created or rotated" if result.created_or_rotated else "reconciled"
+    console.print(
+        f"[green]Proxmox API identity {action} and verified:[/] "
+        f"{result.token_id} | role {result.role_id}"
+    )
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -122,12 +240,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         if command == "show":
             return _show_config(resolve_config_path(args.config), as_json=args.json)
         if command == "doctor":
-            return _doctor(resolve_config_path(args.config), console)
+            return _doctor(resolve_config_path(args.config), args.secrets, console)
+        if command == "secrets":
+            if args.secrets_command == "init":
+                return _secrets_init(args.secrets, args.age_recipient, args.force, console)
+            if args.secrets_command == "edit":
+                path = edit_secret_file(args.secrets)
+                console.print(f"[green]Saved encrypted secret file:[/] {path}")
+                return 0
+            if args.secrets_command == "check":
+                return _secrets_check(resolve_config_path(args.config), args.secrets, console)
+        if command == "proxmox" and args.proxmox_command == "bootstrap":
+            return _proxmox_bootstrap(args, console)
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
             return 0
-    except ConfigurationError as exc:
+    except (ConfigurationError, ProxmoxBootstrapError, SecretError) as exc:
         console.print(f"[red]{exc}[/red]")
         return 2
 
