@@ -1,0 +1,210 @@
+{
+  "$defs": {
+    "AutomationSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "ssh_user": {
+          "default": "automation",
+          "title": "Ssh User",
+          "type": "string"
+        },
+        "ssh_private_key": {
+          "default": "~/.ssh/homelab_ed25519",
+          "title": "Ssh Private Key",
+          "type": "string"
+        },
+        "become": {
+          "default": true,
+          "title": "Become",
+          "type": "boolean"
+        }
+      },
+      "title": "AutomationSettings",
+      "type": "object"
+    },
+    "DeploymentSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "default": "stable",
+          "enum": [
+            "stable",
+            "edge"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "check_interval_minutes": {
+          "default": 60,
+          "maximum": 10080,
+          "minimum": 5,
+          "title": "Check Interval Minutes",
+          "type": "integer"
+        },
+        "automatic_updates": {
+          "default": false,
+          "title": "Automatic Updates",
+          "type": "boolean"
+        },
+        "require_confirmation": {
+          "default": true,
+          "title": "Require Confirmation",
+          "type": "boolean"
+        }
+      },
+      "title": "DeploymentSettings",
+      "type": "object"
+    },
+    "NetworkSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "management_cidr": {
+          "default": "192.168.10.0/24",
+          "format": "ipvanynetwork",
+          "title": "Management Cidr",
+          "type": "string"
+        },
+        "gateway": {
+          "default": "192.168.10.1",
+          "format": "ipvanyaddress",
+          "title": "Gateway",
+          "type": "string"
+        },
+        "dns_servers": {
+          "items": {
+            "format": "ipvanyaddress",
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Dns Servers",
+          "type": "array"
+        },
+        "bridge": {
+          "default": "vmbr0",
+          "maxLength": 15,
+          "minLength": 1,
+          "title": "Bridge",
+          "type": "string"
+        },
+        "vlan_id": {
+          "anyOf": [
+            {
+              "maximum": 4094,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vlan Id"
+        }
+      },
+      "title": "NetworkSettings",
+      "type": "object"
+    },
+    "ProxmoxSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "api_url": {
+          "default": "https://pve.home.arpa:8006",
+          "format": "uri",
+          "minLength": 1,
+          "title": "Api Url",
+          "type": "string"
+        },
+        "node": {
+          "default": "pve",
+          "maxLength": 63,
+          "minLength": 1,
+          "title": "Node",
+          "type": "string"
+        },
+        "storage": {
+          "default": "local-lvm",
+          "maxLength": 63,
+          "minLength": 1,
+          "title": "Storage",
+          "type": "string"
+        },
+        "token_id": {
+          "default": "homelab@pve!control-plane",
+          "description": "Proxmox API token identifier; the secret is supplied separately",
+          "title": "Token Id",
+          "type": "string"
+        },
+        "verify_tls": {
+          "default": true,
+          "title": "Verify Tls",
+          "type": "boolean"
+        }
+      },
+      "title": "ProxmoxSettings",
+      "type": "object"
+    },
+    "SiteSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "default": "homelab",
+          "description": "Short identifier for this homelab",
+          "title": "Name",
+          "type": "string"
+        },
+        "domain": {
+          "default": "home.arpa",
+          "description": "Internal DNS domain",
+          "title": "Domain",
+          "type": "string"
+        },
+        "timezone": {
+          "default": "Pacific/Auckland",
+          "description": "IANA timezone",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "environment": {
+          "default": "production",
+          "enum": [
+            "development",
+            "staging",
+            "production"
+          ],
+          "title": "Environment",
+          "type": "string"
+        }
+      },
+      "title": "SiteSettings",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level, versioned configuration for one homelab site.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "site": {
+      "$ref": "#/$defs/SiteSettings"
+    },
+    "proxmox": {
+      "$ref": "#/$defs/ProxmoxSettings"
+    },
+    "network": {
+      "$ref": "#/$defs/NetworkSettings"
+    },
+    "automation": {
+      "$ref": "#/$defs/AutomationSettings"
+    },
+    "deployment": {
+      "$ref": "#/$defs/DeploymentSettings"
+    }
+  },
+  "title": "HomelabConfig",
+  "type": "object"
+}

@@ -1,0 +1,75 @@
+version: '3'
+
+vars:
+  CONFIG: '{{.CONFIG | default "config/sites/local.yaml"}}'
+
+tasks:
+  default:
+    desc: Open the Homelab control panel
+    cmds:
+      - task: menu
+
+  setup:
+    desc: Create the locked production Python environment
+    cmds:
+      - uv sync --locked --no-dev
+
+  dev:setup:
+    desc: Create the locked development environment
+    cmds:
+      - uv sync --locked --all-groups
+
+  menu:
+    desc: Open the interactive terminal control panel
+    cmds:
+      - uv run --locked --no-dev homelabctl menu --config "{{.CONFIG}}"
+
+  configure:
+    desc: Open the configuration editor
+    cmds:
+      - uv run --locked --no-dev homelabctl menu --page configuration --config "{{.CONFIG}}"
+
+  config:init:
+    desc: Create a site configuration using safe defaults
+    cmds:
+      - uv run --locked --no-dev homelabctl init --config "{{.CONFIG}}"
+
+  config:validate:
+    desc: Validate the active site configuration
+    cmds:
+      - uv run --locked --no-dev homelabctl validate --config "{{.CONFIG}}"
+
+  config:show:
+    desc: Show effective non-secret configuration
+    cmds:
+      - uv run --locked --no-dev homelabctl show --config "{{.CONFIG}}"
+
+  doctor:
+    desc: Check control-plane readiness
+    cmds:
+      - uv run --locked --no-dev homelabctl doctor --config "{{.CONFIG}}"
+
+  schema:
+    desc: Regenerate the site JSON Schema
+    cmds:
+      - uv run --locked --no-dev homelabctl schema --output config/schema/site.schema.json
+
+  test:
+    desc: Run the automated test suite
+    cmds:
+      - uv run --locked pytest
+
+  lint:
+    desc: Check formatting and code quality
+    cmds:
+      - uv run --locked ruff format --check .
+      - uv run --locked ruff check .
+
+  check:
+    desc: Run all repository quality gates
+    cmds:
+      - task: lint
+      - task: test
+      - task: config:validate
+        vars:
+          CONFIG: config/examples/site.yaml

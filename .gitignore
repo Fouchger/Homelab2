@@ -1,0 +1,37 @@
+# Local configuration and credentials
+config/sites/*.yaml
+!config/sites/.gitkeep
+.env
+.env.*
+!.env.example
+*.agekey
+
+# OpenTofu state and plans
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+.terraform.lock.hcl.bak
+crash.log
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Runtime output
+.cache/
+logs/
+artifacts/
+
