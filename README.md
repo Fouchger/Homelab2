@@ -22,6 +22,12 @@ shows operations that are actually implemented.
 
 ## Quick start
 
+Run the installer:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Fouchger/Homelab2/main/install.sh)"
+```
+
 Prerequisites are [uv](https://docs.astral.sh/uv/) and
 [Task](https://taskfile.dev/). From WSL2 or Ubuntu:
 
