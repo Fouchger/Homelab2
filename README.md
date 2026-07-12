@@ -70,9 +70,10 @@ task menu
 ```
 
 Its Operations page initializes encrypted secrets, prepares the dedicated Proxmox SSH public key,
-and performs the plan/confirm/apply API identity bootstrap. CLI and Task commands remain available
-for unattended operation and recovery. See [`docs/SECRETS.md`](docs/SECRETS.md) for identity backup,
-recovery, and rotation.
+installs it with an interactive `ssh-copy-id` dialog, and performs the plan/confirm/apply API
+identity bootstrap. Every displayed authorization command has a dedicated copy button. CLI and Task
+commands remain available for unattended operation and recovery. See
+[`docs/SECRETS.md`](docs/SECRETS.md) for identity backup, recovery, and rotation.
 
 ## Configuration policy
 

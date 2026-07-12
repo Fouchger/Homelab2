@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
 from pathlib import Path
 from typing import ClassVar
 
@@ -23,6 +24,7 @@ from textual.widgets import (
     Select,
     Static,
     Switch,
+    TextArea,
 )
 
 from homelabctl.configuration import ConfigurationError, load_config, save_config
@@ -54,6 +56,89 @@ class ConfirmDialog(ModalScreen[bool]):
     @on(Button.Pressed, "#confirm-continue")
     def confirm(self) -> None:
         self.dismiss(True)
+
+
+class CopyCommandDialog(ModalScreen[bool]):
+    """Show a command separately, copy it, or run it interactively outside the TUI."""
+
+    def __init__(
+        self,
+        command: str,
+        interactive_command: tuple[str, ...],
+        fallback_command: str | None = None,
+    ) -> None:
+        super().__init__()
+        self.command = command
+        self.interactive_command = interactive_command
+        self.fallback_command = fallback_command
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="copy-command-dialog"):
+            yield Static("Authorize the Proxmox SSH key", classes="dialog-title")
+            yield Static(
+                "Recommended: install the public key automatically. The menu will temporarily "
+                "close so ssh-copy-id can request the Proxmox root password; the password is "
+                "handled by SSH and is never stored.",
+                classes="dialog-detail",
+            )
+            yield Label("Command run on the control plane", classes="field-label")
+            yield TextArea(
+                self.command,
+                read_only=True,
+                show_cursor=True,
+                soft_wrap=True,
+                id="copy-command-text",
+            )
+            with Horizontal(classes="dialog-actions"):
+                yield Button("Install key automatically", id="command-run", variant="success")
+                yield Button("Copy command", id="command-copy")
+                yield Button("Close", id="command-close")
+            if self.fallback_command is not None:
+                yield Static(
+                    "If root password SSH is disabled, copy this fallback and run it once in the "
+                    "Proxmox web shell or physical console.",
+                    classes="dialog-detail",
+                )
+                yield TextArea(
+                    self.fallback_command,
+                    read_only=True,
+                    show_cursor=True,
+                    soft_wrap=True,
+                    id="fallback-command-text",
+                )
+                yield Button("Copy console fallback", id="fallback-copy")
+
+    @on(Button.Pressed, "#command-copy")
+    def copy_command(self) -> None:
+        self.app.copy_to_clipboard(self.command)
+        self.app.notify("ssh-copy-id command copied", severity="information")
+
+    @on(Button.Pressed, "#fallback-copy")
+    def copy_fallback(self) -> None:
+        if self.fallback_command is not None:
+            self.app.copy_to_clipboard(self.fallback_command)
+            self.app.notify("Proxmox console command copied", severity="information")
+
+    @on(Button.Pressed, "#command-run")
+    def run_command(self) -> None:
+        try:
+            with self.app.suspend():
+                completed = subprocess.run(list(self.interactive_command), check=False)
+        except OSError:
+            self.app.notify("ssh-copy-id could not be started", severity="error")
+            return
+        if completed.returncode == 0:
+            self.app.notify("Proxmox SSH key authorized", severity="information")
+            self.dismiss(True)
+        else:
+            self.app.notify(
+                "Automatic key installation failed; use the console fallback",
+                severity="warning",
+            )
+
+    @on(Button.Pressed, "#command-close")
+    def close_dialog(self) -> None:
+        self.dismiss(False)
 
 
 class OverviewPage(VerticalScroll):
@@ -469,11 +554,23 @@ class ControlPlaneApp(App[None]):
     .operation-card Button { dock: bottom; width: 1fr; }
     #activity-log { height: 1fr; min-height: 12; background: #050b13; border: solid $hl-border; padding: 1; }
     ConfirmDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
+    CopyCommandDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     #confirm-dialog { width: 64; height: auto; background: $hl-surface; border: thick $hl-danger; padding: 2; }
     .dialog-title { height: 2; text-style: bold; }
     .dialog-detail { height: auto; color: $hl-muted; margin-bottom: 1; }
     .dialog-actions { height: 3; align-horizontal: right; }
     .dialog-actions Button { margin-left: 1; }
+    #copy-command-dialog {
+        width: 92;
+        height: auto;
+        max-height: 34;
+        background: $hl-surface;
+        border: thick $hl-accent;
+        padding: 2;
+    }
+    #copy-command-text { height: 5; border: solid $hl-border; }
+    #fallback-command-text { height: 7; border: solid $hl-border; }
+    #fallback-copy { width: 1fr; margin-top: 1; }
 
     Screen.-compact #sidebar { display: none; }
     Screen.-compact OverviewPage,
@@ -572,6 +669,19 @@ class ControlPlaneApp(App[None]):
         color = "green" if result.succeeded else "red"
         for line in result.lines:
             log.write(line)
+        if result.copy_text is not None and result.interactive_command is not None:
+            installed = await self.push_screen_wait(
+                CopyCommandDialog(
+                    result.copy_text,
+                    result.interactive_command,
+                    result.fallback_text,
+                )
+            )
+            log.write(
+                "[green]SSH public key installed.[/green]"
+                if installed
+                else "[yellow]SSH key installation dialog closed.[/yellow]"
+            )
         log.write(
             f"[{color}]{'✓ Completed' if result.succeeded else '✗ Action needs attention'}[/{color}]\n"
         )

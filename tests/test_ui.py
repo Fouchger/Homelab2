@@ -6,7 +6,12 @@ from unittest.mock import Mock
 from textual.widgets import Button
 
 from homelabctl.configuration import load_config
-from homelabctl.ui import ConfigurationPage, ConfirmDialog, ControlPlaneApp
+from homelabctl.ui import (
+    ConfigurationPage,
+    ConfirmDialog,
+    ControlPlaneApp,
+    CopyCommandDialog,
+)
 
 
 async def test_compact_layout_hides_sidebar(tmp_path: Path) -> None:
@@ -60,3 +65,22 @@ async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(
         await pilot.pause()
 
     execute.assert_not_called()
+
+
+async def test_ssh_command_dialog_copies_primary_and_fallback_commands(tmp_path: Path) -> None:
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+    primary = 'ssh-copy-id -i "/root/.ssh/proxmox_bootstrap_ed25519.pub" root@192.168.20.10'
+    fallback = "install public key fallback"
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        app.push_screen(CopyCommandDialog(primary, ("ssh-copy-id",), fallback))
+        await pilot.pause()
+
+        await pilot.click("#command-copy")
+        assert app.clipboard == primary
+
+        await pilot.click("#fallback-copy")
+        assert app.clipboard == fallback
+
+        await pilot.click("#command-close")
+        await pilot.pause()

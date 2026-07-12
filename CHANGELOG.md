@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file.
 - Installer support for age and checksum-verified SOPS binaries.
 - Planned, idempotent Proxmox API role/user/ACL/token bootstrap with separated-token permissions,
   explicit rotation, direct SOPS capture, and authenticated API verification.
+- Control-panel SSH authorization dialog with automatic interactive `ssh-copy-id`, terminal
+  clipboard buttons, and a Proxmox-console fallback.
 
 ## [0.1.0] - 2026-07-12
 

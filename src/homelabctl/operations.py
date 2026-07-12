@@ -36,6 +36,9 @@ class OperationResult:
     succeeded: bool
     title: str
     lines: tuple[str, ...]
+    copy_text: str | None = None
+    interactive_command: tuple[str, ...] | None = None
+    fallback_text: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,21 +154,28 @@ def proxmox_ssh_plan(path: Path) -> OperationResult:
 
 def prepare_proxmox_ssh(path: Path) -> OperationResult:
     try:
+        config = load_config(path)
+        plan = build_plan(config)
         private_key, public_key, created = ensure_bootstrap_ssh_key()
-    except ProxmoxBootstrapError as exc:
+    except (ConfigurationError, ProxmoxBootstrapError) as exc:
         return OperationResult(False, "Proxmox SSH preparation", tuple(str(exc).splitlines()))
+    public_key_path = f"{private_key}.pub"
+    copy_command = ("ssh-copy-id", "-i", public_key_path, plan.ssh_target)
     return OperationResult(
         True,
         "Proxmox SSH preparation",
         (
             f"Dedicated SSH key: {'created' if created else 'already present'} at {private_key}",
-            "Public key (safe to copy):",
-            public_key,
-            "Run once in the Proxmox web shell or physical console:",
+            f"Target: {plan.ssh_target}",
+            "Use the key-install dialog, then run the API identity bootstrap from this menu",
+            "If root password SSH is disabled, use the Proxmox console fallback in the dialog",
+        ),
+        copy_text=shlex.join(copy_command),
+        interactive_command=copy_command,
+        fallback_text=(
             "install -d -m 700 /root/.ssh && "
             f"printf '%s\\n' {shlex.quote(public_key)} >> /root/.ssh/authorized_keys && "
-            "chmod 600 /root/.ssh/authorized_keys",
-            "After authorization, run the Proxmox API identity bootstrap from this menu",
+            "chmod 600 /root/.ssh/authorized_keys"
         ),
     )
 

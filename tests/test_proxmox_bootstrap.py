@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest.mock import Mock
 
 import pytest
+import yaml
 
 from homelabctl.models import default_config
+from homelabctl.operations import prepare_proxmox_ssh
 from homelabctl.proxmox_bootstrap import (
     PROVISIONING_PRIVILEGES,
     REMOTE_BOOTSTRAP_SCRIPT,
@@ -169,3 +171,32 @@ def test_dedicated_ssh_key_creation_returns_only_public_key(
     assert displayed == public_value
     assert created
     assert "PRIVATE" not in displayed
+
+
+def test_prepare_ssh_returns_copyable_ssh_copy_id_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = default_config()
+    config.proxmox.api_url = "https://192.168.20.10:8006"
+    config_path = tmp_path / "site.yaml"
+    config_path.write_text(yaml.safe_dump(config.model_dump(mode="json")), encoding="utf-8")
+    private_key = PurePosixPath("/root/.ssh/proxmox_bootstrap_ed25519")
+    monkeypatch.setattr(
+        "homelabctl.operations.ensure_bootstrap_ssh_key",
+        lambda: (private_key, "ssh-ed25519 AAAATEST comment", True),
+    )
+
+    result = prepare_proxmox_ssh(config_path)
+
+    assert result.succeeded
+    assert result.copy_text == (
+        "ssh-copy-id -i /root/.ssh/proxmox_bootstrap_ed25519.pub root@192.168.20.10"
+    )
+    assert result.interactive_command == (
+        "ssh-copy-id",
+        "-i",
+        "/root/.ssh/proxmox_bootstrap_ed25519.pub",
+        "root@192.168.20.10",
+    )
+    assert result.fallback_text is not None
+    assert "ssh-ed25519 AAAATEST comment" in result.fallback_text

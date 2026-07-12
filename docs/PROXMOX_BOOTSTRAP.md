@@ -33,14 +33,22 @@ There is one unavoidable initial trust step. In the menu:
 
 1. Open **Operations**.
 2. Run **Prepare Proxmox SSH access** and confirm its plan.
-3. Copy the displayed one-line authorization command.
-4. Open the Proxmox web interface's node shell (or physical console) and run that command once. It
-   authorizes the displayed public key for root in `/root/.ssh/authorized_keys`.
-5. Return to Operations and run **Bootstrap Proxmox API identity**.
+3. In the separate key-install dialog, choose **Install key automatically**.
+4. The control panel temporarily suspends and runs `ssh-copy-id`; enter the current Proxmox root
+   password directly at the SSH prompt.
+5. When the menu returns, run **Bootstrap Proxmox API identity**.
+
+The root password is handled only by `ssh-copy-id` and is never returned to or stored by the control
+plane. The dialog also provides **Copy command** for running the same command in another
+control-plane terminal.
+
+If Proxmox is configured to reject root password SSH, use **Copy console fallback** and run that
+one-line command in the Proxmox web shell or physical console instead.
 
 The private key remains at `~/.ssh/proxmox_bootstrap_ed25519` on the control plane and is never
-displayed. SSH password prompting is disabled. The first host key is accepted using SSH trust on
-first use; a later changed host key is rejected.
+displayed. Password prompting is enabled only inside the interactive `ssh-copy-id` installation;
+the actual API bootstrap requires the key and disables SSH password authentication. The first host
+key is accepted using SSH trust on first use; a later changed host key is rejected.
 
 ## Menu plan and apply
 

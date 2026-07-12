@@ -29,6 +29,7 @@ TOOLS: tuple[tuple[str, str, bool], ...] = (
     ("task", "Task runner", True),
     ("uv", "Python environment", True),
     ("ssh", "Administrator bootstrap connection", True),
+    ("ssh-copy-id", "SSH key authorization", True),
     ("tofu", "Infrastructure provisioning", False),
     ("ansible-playbook", "System configuration", False),
     ("sops", "Secret file encryption", True),
