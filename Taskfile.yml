@@ -50,6 +50,16 @@ tasks:
     cmds:
       - uv run --locked --no-dev homelabctl doctor --config "{{.CONFIG}}" --secrets "{{.SECRETS}}"
 
+  update:plan:
+    desc: Preview a guarded control-plane update from GitHub
+    cmds:
+      - uv run --locked --no-dev homelabctl update --config "{{.CONFIG}}"
+
+  update:
+    desc: Apply the previewed fast-forward control-plane update
+    cmds:
+      - uv run --locked --no-dev homelabctl update --config "{{.CONFIG}}" --apply
+
   secrets:init:
     desc: Initialize a SOPS-encrypted secret file
     requires:

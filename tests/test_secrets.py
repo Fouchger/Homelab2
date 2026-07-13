@@ -17,6 +17,7 @@ from homelabctl.secrets import (
     initialize_secret_file,
     load_secrets,
     resolve_secrets_path,
+    set_cloudflare_token,
     set_proxmox_token,
 )
 
@@ -250,6 +251,22 @@ def test_proxmox_token_update_uses_stdin_not_command_arguments(
 
     command = run.call_args.args[0]
     assert api_token not in command
+    assert run.call_args.kwargs["input"] == json.dumps(api_token)
+
+
+def test_cloudflare_token_update_uses_stdin_and_can_create_provider_section(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_encrypted_file(tmp_path / "secrets.enc.yaml", cloudflare=False)
+    api_token = "scoped-cloudflare-token"
+    run = Mock(return_value=subprocess.CompletedProcess(args=["sops"], returncode=0, stdout=""))
+    monkeypatch.setattr("homelabctl.secrets.subprocess.run", run)
+
+    set_cloudflare_token(path, api_token, sops_executable="sops")
+
+    command = run.call_args.args[0]
+    assert api_token not in command
+    assert '["cloudflare"]["api_token"]' in command
     assert run.call_args.kwargs["input"] == json.dumps(api_token)
 
 

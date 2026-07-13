@@ -75,7 +75,7 @@ class ProxmoxSettings(StrictModel):
         default="homelab@pve!control-plane",
         description="Proxmox API token identifier; the secret is supplied separately",
     )
-    verify_tls: bool = True
+    verify_tls: bool = False
 
     @field_validator("api_url")
     @classmethod
@@ -110,10 +110,10 @@ class CloudflareSettings(StrictModel):
 
 
 class NetworkSettings(StrictModel):
-    management_cidr: IPvAnyNetwork = "192.168.10.0/24"
-    gateway: IPvAnyAddress = "192.168.10.1"
+    management_cidr: IPvAnyNetwork = "192.168.20.0/24"
+    gateway: IPvAnyAddress = "192.168.20.1"
     dns_servers: list[IPvAnyAddress] = Field(
-        default_factory=lambda: [IPv4Address("192.168.10.1")], min_length=1, max_length=4
+        default_factory=lambda: [IPv4Address("192.168.20.1")], min_length=1, max_length=4
     )
     bridge: str = Field(default="vmbr0", min_length=1, max_length=15)
     vlan_id: int | None = Field(default=None, ge=1, le=4094)

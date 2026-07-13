@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import Mock
 
-from textual.widgets import Button
+from textual.widgets import Button, Input
 
 from homelabctl.configuration import load_config
 from homelabctl.operations import Operation, OperationResult
@@ -12,6 +12,7 @@ from homelabctl.ui import (
     ConfirmDialog,
     ControlPlaneApp,
     CopyCommandDialog,
+    SecretInputDialog,
 )
 
 
@@ -57,9 +58,8 @@ async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(
         await pilot.press("3")
         await pilot.pause()
         assert app.query_one("#operation-secrets-init")
-
-        await pilot.click("#operation-secrets-init")
-        await pilot.pause()
+        app.query_one("#operation-secrets-init", Button).press()
+        await pilot.pause(0.05)
         assert isinstance(app.screen, ConfirmDialog)
         await pilot.pause(0.05)
 
@@ -121,3 +121,52 @@ async def test_token_recovery_requires_a_second_explicit_confirmation(
         await pilot.pause()
 
     execute.assert_called_once_with("recovery-test", app.config_path)
+
+
+async def test_masked_cloudflare_token_is_passed_directly_to_secret_operation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    operation = Operation(
+        "secret-test",
+        "Set token",
+        "Test masked token flow",
+        lambda path: OperationResult(False, "unused", ()),
+        destructive=True,
+        plan=lambda path: OperationResult(True, "plan", ("Replace encrypted token",)),
+        secret_prompt="Paste token",
+    )
+    execute_secret = Mock(return_value=OperationResult(True, "Set token", ("Saved",)))
+    monkeypatch.setattr("homelabctl.ui.OPERATIONS", (operation,))
+    monkeypatch.setattr("homelabctl.ui.execute_with_secret", execute_secret)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("3")
+        await pilot.click("#operation-secret-test")
+        await pilot.pause(0.05)
+        await pilot.click("#confirm-continue")
+        await pilot.pause(0.05)
+        assert isinstance(app.screen, SecretInputDialog)
+        secret_input = app.screen.query_one("#secret-input-value", Input)
+        assert secret_input.password
+        secret_input.value = "private-token-value"
+        await pilot.click("#secret-input-save")
+        await pilot.pause()
+
+    execute_secret.assert_called_once_with("secret-test", "private-token-value", app.config_path)
+
+
+async def test_opentofu_operation_is_reachable_in_very_wide_layout(
+    tmp_path: Path, monkeypatch
+) -> None:
+    execute = Mock(return_value=OperationResult(True, "OpenTofu", ("Validated",)))
+    monkeypatch.setattr("homelabctl.ui.execute", execute)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("3")
+        await pilot.pause()
+        await pilot.click("#operation-tofu-check")
+        await pilot.pause()
+
+    execute.assert_called_once_with("tofu-check", app.config_path)

@@ -6,6 +6,7 @@ config/secrets/local.enc.yaml
 .env.*
 !.env.example
 *.agekey
+.sops.yaml
 
 # OpenTofu state and plans
 *.tfstate

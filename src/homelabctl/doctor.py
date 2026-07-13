@@ -80,16 +80,15 @@ def run_checks(
         results.append(
             CheckResult(
                 "Encrypted credentials",
-                "warn",
+                "fail",
                 f"Not initialized: {encrypted_path}",
-                required=False,
             )
         )
     else:
         try:
             bundle = load_secrets(encrypted_path, config=config)
         except SecretError as exc:
-            results.append(CheckResult("Encrypted credentials", "fail", str(exc), required=False))
+            results.append(CheckResult("Encrypted credentials", "fail", str(exc)))
         else:
             providers = ", ".join(bundle.provider_names())
             results.append(
@@ -97,7 +96,6 @@ def run_checks(
                     "Encrypted credentials",
                     "pass",
                     f"Decrypted and validated for: {providers}",
-                    required=False,
                 )
             )
     return results

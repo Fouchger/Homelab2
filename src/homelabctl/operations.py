@@ -11,6 +11,7 @@ import yaml
 
 from homelabctl.configuration import (
     ConfigurationError,
+    find_project_root,
     load_config,
     redacted_mapping,
     resolve_config_path,
@@ -27,10 +28,13 @@ from homelabctl.proxmox_bootstrap import (
 from homelabctl.secrets import (
     SecretError,
     ensure_secret_store,
+    load_secrets,
     resolve_age_identity_path,
     resolve_secrets_path,
+    set_cloudflare_token,
 )
 from homelabctl.tofu import TofuError, check_foundation
+from homelabctl.updater import UpdateError, apply_update, prepare_update
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +58,7 @@ class Operation:
     destructive: bool = False
     plan: Callable[[Path], OperationResult] | None = None
     visible: bool = True
+    secret_prompt: str | None = None
 
 
 def validate_configuration(path: Path) -> OperationResult:
@@ -92,6 +97,54 @@ def configuration_summary(path: Path) -> OperationResult:
     return OperationResult(True, "Configuration summary", tuple(rendered.rstrip().splitlines()))
 
 
+def control_plane_update_plan(path: Path) -> OperationResult:
+    try:
+        plan = prepare_update(find_project_root(path.parent))
+    except UpdateError as exc:
+        return OperationResult(False, "Control-plane update plan", tuple(str(exc).splitlines()))
+    if plan.up_to_date:
+        lines = (
+            f"Current version: {plan.current_commit[:12]}",
+            "GitHub version: already current",
+            "No source files will change",
+        )
+    else:
+        displayed = plan.changed_files[:8]
+        remainder = len(plan.changed_files) - len(displayed)
+        lines = (
+            f"Current version: {plan.current_commit[:12]}",
+            f"Available version: {plan.target_commit[:12]}",
+            f"Changed files ({len(plan.changed_files)}): {', '.join(displayed)}"
+            + (f" and {remainder} more" if remainder else ""),
+            "Only a clean fast-forward update is allowed",
+            "Local configuration, encrypted secrets, state, logs, and age keys are preserved",
+            "Restart the menu after updating to load the new code",
+        )
+    return OperationResult(True, "Control-plane update plan", lines)
+
+
+def update_control_plane(path: Path) -> OperationResult:
+    try:
+        result = apply_update(find_project_root(path.parent))
+    except UpdateError as exc:
+        return OperationResult(False, "Control-plane update", tuple(str(exc).splitlines()))
+    if result.updated:
+        lines = (
+            f"Updated {result.previous_commit[:12]} to {result.current_commit[:12]}",
+            f"Updated files: {len(result.changed_files)}",
+            "Locked Python environment synchronized",
+            "Exit and reopen the menu now to load the updated control plane",
+            f"Diagnostic log: {result.diagnostic_log}",
+        )
+    else:
+        lines = (
+            f"Already current at {result.current_commit[:12]}",
+            "No files were changed",
+            f"Diagnostic log: {result.diagnostic_log}",
+        )
+    return OperationResult(True, "Control-plane update", lines)
+
+
 def secret_store_plan(path: Path) -> OperationResult:
     return OperationResult(
         True,
@@ -123,6 +176,47 @@ def initialize_secret_store(path: Path) -> OperationResult:
             f"Public recipient: {recipient}",
             f"Encrypted credentials: {'created' if secret_created else 'already present'} at {secret_path}",
             "Back up the age identity offline before provisioning infrastructure",
+        ),
+    )
+
+
+def cloudflare_token_plan(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+    except ConfigurationError as exc:
+        return OperationResult(False, "Cloudflare token plan", tuple(str(exc).splitlines()))
+    if not config.cloudflare.domains:
+        return OperationResult(
+            False,
+            "Cloudflare token plan",
+            ("No external Cloudflare domains are configured.",),
+        )
+    return OperationResult(
+        True,
+        "Cloudflare token plan",
+        (
+            f"Domains: {', '.join(config.cloudflare.domains)}",
+            f"Encrypted credentials: {resolve_secrets_path()}",
+            "The token field will be masked and passed directly to SOPS",
+            "An existing Cloudflare token will be replaced",
+            "The encrypted credential store will be validated after saving",
+        ),
+    )
+
+
+def set_cloudflare_credential(path: Path, token: str) -> OperationResult:
+    try:
+        config = load_config(path)
+        secret_path = set_cloudflare_token(resolve_secrets_path(), token)
+        load_secrets(secret_path, config=config)
+    except (ConfigurationError, SecretError) as exc:
+        return OperationResult(False, "Cloudflare API token", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Cloudflare API token",
+        (
+            f"Encrypted Cloudflare token stored at {secret_path}",
+            f"Validated for {len(config.cloudflare.domains)} configured domain(s)",
         ),
     )
 
@@ -286,12 +380,29 @@ OPERATIONS: tuple[Operation, ...] = (
         configuration_summary,
     ),
     Operation(
+        "update",
+        "Update control plane",
+        "Safely fetch and install the latest fast-forward version from GitHub.",
+        update_control_plane,
+        destructive=True,
+        plan=control_plane_update_plan,
+    ),
+    Operation(
         "secrets-init",
         "Initialize encrypted secrets",
         "Create the age identity, SOPS policy, and encrypted credential store.",
         initialize_secret_store,
         destructive=True,
         plan=secret_store_plan,
+    ),
+    Operation(
+        "cloudflare-token",
+        "Set Cloudflare API token",
+        "Securely add or replace the token required by configured external domains.",
+        lambda path: OperationResult(False, "Cloudflare API token", ("Token input required",)),
+        destructive=True,
+        plan=cloudflare_token_plan,
+        secret_prompt="Paste the scoped Cloudflare API token. The value stays masked and is sent directly to SOPS.",
     ),
     Operation(
         "proxmox-ssh",
@@ -336,3 +447,11 @@ def get_operation(identifier: str) -> Operation:
 def execute(identifier: str, path: str | Path | None = None) -> OperationResult:
     operation = get_operation(identifier)
     return operation.run(resolve_config_path(path))
+
+
+def execute_with_secret(
+    identifier: str, secret: str, path: str | Path | None = None
+) -> OperationResult:
+    if identifier != "cloudflare-token":
+        raise KeyError(f"Operation does not accept secret input: {identifier}")
+    return set_cloudflare_credential(resolve_config_path(path), secret)

@@ -55,6 +55,17 @@ confirmation dialog.
 providers, validates generated typed inputs, and writes a saved plan to the ignored `artifacts/`
 directory. It never applies a plan. See [`OPENTOFU_STATE.md`](OPENTOFU_STATE.md).
 
+The operations grid adapts to the available width and scrolls when more actions are registered, so
+no implemented menu action is clipped below a fixed card limit. Secret-entry actions use masked
+dialogs and pass values directly to their encrypted operation without writing them to the activity
+log.
+
+**Update control plane** fetches the configured GitHub branch, displays the commits and changed
+files, and requires confirmation before a fast-forward-only merge. It refuses tracked source edits
+and never resets, stashes, or deletes files. Ignored runtime configuration, encrypted secrets,
+OpenTofu state, logs, caches, and age keys remain in place. Restart the menu after a successful
+update so the running process loads the new code.
+
 ## Secrets
 
 The normal configuration object deliberately has no password or token-secret fields. Token IDs,

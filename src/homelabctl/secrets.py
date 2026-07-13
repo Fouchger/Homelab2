@@ -348,6 +348,32 @@ def set_proxmox_token(
 ) -> Path:
     """Replace the encrypted Proxmox token using stdin so it never enters command arguments."""
 
+    return _set_provider_token(path, "proxmox", api_token, sops_executable=sops_executable)
+
+
+def set_cloudflare_token(
+    path: str | Path | None,
+    api_token: str,
+    *,
+    sops_executable: str | None = None,
+) -> Path:
+    """Create or replace the encrypted Cloudflare token without exposing its value."""
+
+    normalized = api_token.strip()
+    if not normalized or normalized in PLACEHOLDER_VALUES:
+        raise SecretError("Enter a non-placeholder Cloudflare API token")
+    return _set_provider_token(path, "cloudflare", normalized, sops_executable=sops_executable)
+
+
+def _set_provider_token(
+    path: str | Path | None,
+    provider: str,
+    api_token: str,
+    *,
+    sops_executable: str | None = None,
+) -> Path:
+    """Set one provider credential using protected standard input."""
+
     secret_path = resolve_secrets_path(path)
     _read_encrypted_mapping(secret_path)
     sops = _find_sops(sops_executable)
@@ -358,7 +384,7 @@ def set_proxmox_token(
                 "set",
                 "--value-stdin",
                 str(secret_path),
-                '["proxmox"]["api_token"]',
+                f'["{provider}"]["api_token"]',
             ],
             input=json.dumps(api_token),
             check=False,
@@ -368,9 +394,9 @@ def set_proxmox_token(
             timeout=30,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        raise SecretError("SOPS could not update the encrypted Proxmox token") from exc
+        raise SecretError(f"SOPS could not update the encrypted {provider} token") from exc
     if completed.returncode != 0:
-        raise SecretError("SOPS could not update the encrypted Proxmox token")
+        raise SecretError(f"SOPS could not update the encrypted {provider} token")
     return secret_path
 
 

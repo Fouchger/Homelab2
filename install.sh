@@ -166,6 +166,7 @@ install_task() {
 
 clone_or_update_repository() {
   local repository_url="https://github.com/${REPOSITORY}.git"
+  local tracked_changes
 
   git check-ref-format --branch "$BRANCH" >/dev/null 2>&1 || fail "Invalid branch name: ${BRANCH}"
 
@@ -178,8 +179,10 @@ clone_or_update_repository() {
 
   [ -d "$INSTALL_DIR/.git" ] || fail "${INSTALL_DIR} already exists and is not a Git repository."
 
-  if [ -n "$(git -C "$INSTALL_DIR" status --porcelain)" ]; then
-    fail "${INSTALL_DIR} contains local changes. Commit or stash them before running the installer again."
+  tracked_changes="$(git -C "$INSTALL_DIR" status --porcelain --untracked-files=no)"
+  if [ -n "$tracked_changes" ]; then
+    printf 'ERROR: %s contains tracked source changes:\n%s\n' "$INSTALL_DIR" "$tracked_changes" >&2
+    fail "Commit or revert those source changes before updating. Runtime configuration, secrets, state, and logs are preserved automatically."
   fi
 
   info "Updating the existing repository in ${INSTALL_DIR}"

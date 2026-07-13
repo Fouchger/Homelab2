@@ -18,6 +18,12 @@ The **Bootstrap Proxmox API identity** menu action also ensures this secret stor
 safe to go directly to that operation. Back up a newly created age identity offline before relying
 on it for recovery.
 
+When external domains are configured, run **Set Cloudflare API token** from Operations. After a
+confirmation, the menu opens a masked token field and passes the value directly to SOPS through
+protected standard input. The token is never displayed, logged, placed in a command argument, or
+written to a plaintext file. The menu then decrypts and validates the complete credential structure
+before reporting success.
+
 ## CLI fallback
 
 The installer provides `sops`, `age`, and `age-keygen`. For unattended recovery or development,
@@ -58,6 +64,10 @@ cloudflare:
 Cloudflare is optional when `cloudflare.domains` is empty. Proxmox is always required. The
 encrypted document retains the clear YAML keys but every `api_token` value must be an `ENC[...]`
 SOPS value. The loader refuses a document with missing SOPS metadata or a plaintext token.
+
+Readiness fails when a credential required by the active configuration is missing. Either use the
+guided Cloudflare token operation or remove the external domains from Configuration when
+Cloudflare management is not wanted.
 
 Use `HOMELAB_SECRETS` or `SECRETS=` with Task to select another encrypted file.
 

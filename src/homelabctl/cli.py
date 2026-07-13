@@ -14,6 +14,7 @@ from rich.table import Table
 from homelabctl import __version__
 from homelabctl.configuration import (
     ConfigurationError,
+    find_project_root,
     initialize_config,
     load_config,
     redacted_mapping,
@@ -36,6 +37,7 @@ from homelabctl.secrets import (
     write_sops_policy,
 )
 from homelabctl.tofu import TofuError, check_foundation
+from homelabctl.updater import UpdateError, apply_update, prepare_update
 
 
 def _add_config_argument(parser: argparse.ArgumentParser) -> None:
@@ -85,6 +87,14 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = subcommands.add_parser("doctor", help="check control-plane readiness")
     _add_config_argument(doctor)
     _add_secrets_argument(doctor)
+
+    update = subcommands.add_parser(
+        "update", help="safely update from the configured GitHub branch"
+    )
+    _add_config_argument(update)
+    update.add_argument(
+        "--apply", action="store_true", help="apply the displayed fast-forward update"
+    )
 
     secrets = subcommands.add_parser("secrets", help="manage SOPS-encrypted runtime credentials")
     secret_commands = secrets.add_subparsers(dest="secrets_command", required=True)
@@ -165,6 +175,28 @@ def _doctor(config_path: Path, secrets_path: Path | None, console: Console) -> i
         )
     console.print(table)
     return 0 if checks_succeeded(results) else 1
+
+
+def _update(config_path: Path, *, apply: bool, console: Console) -> int:
+    root = find_project_root(config_path.parent)
+    plan = prepare_update(root)
+    console.print("[bold cyan]Control-plane update plan[/]")
+    console.print(f"- Current version: {plan.current_commit[:12]}")
+    console.print(f"- GitHub version: {plan.target_commit[:12]}")
+    console.print(f"- Changed files: {len(plan.changed_files)}")
+    if not apply:
+        console.print("[yellow]Plan only. Re-run with --apply to install the update.[/]")
+        return 0
+    result = apply_update(root)
+    if result.updated:
+        console.print(
+            f"[green]Updated control plane:[/] {result.previous_commit[:12]} -> "
+            f"{result.current_commit[:12]}"
+        )
+        console.print("Restart the menu to load the new code.")
+    else:
+        console.print(f"[green]Already current:[/] {result.current_commit[:12]}")
+    return 0
 
 
 def _secrets_init(path: Path | None, recipient: str, force: bool, console: Console) -> int:
@@ -259,6 +291,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _show_config(resolve_config_path(args.config), as_json=args.json)
         if command == "doctor":
             return _doctor(resolve_config_path(args.config), args.secrets, console)
+        if command == "update":
+            return _update(resolve_config_path(args.config), apply=args.apply, console=console)
         if command == "secrets":
             if args.secrets_command == "init":
                 return _secrets_init(args.secrets, args.age_recipient, args.force, console)
@@ -276,7 +310,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
             return 0
-    except (ConfigurationError, ProxmoxBootstrapError, SecretError, TofuError) as exc:
+    except (ConfigurationError, ProxmoxBootstrapError, SecretError, TofuError, UpdateError) as exc:
         console.print(f"[red]{exc}[/red]")
         return 2
 

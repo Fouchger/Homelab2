@@ -80,6 +80,10 @@ The Operations page also exposes the safe OpenTofu foundation check. It initiali
 provider, validates typed inputs generated from the active site, and saves a plan without applying
 or changing infrastructure.
 
+Once installed, future code upgrades are available through **Operations → Update control plane**.
+The updater previews GitHub changes, accepts only a clean fast-forward, preserves ignored runtime
+data, synchronizes locked dependencies, and asks the operator to restart the menu.
+
 ## Configuration policy
 
 - Reusable defaults and examples are committed.

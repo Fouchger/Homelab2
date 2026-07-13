@@ -30,7 +30,7 @@ from textual.widgets import (
 from homelabctl.configuration import ConfigurationError, load_config, save_config
 from homelabctl.doctor import run_checks
 from homelabctl.models import HomelabConfig, default_config
-from homelabctl.operations import OPERATIONS, OperationResult, execute
+from homelabctl.operations import OPERATIONS, OperationResult, execute, execute_with_secret
 
 
 class ConfirmDialog(ModalScreen[bool]):
@@ -56,6 +56,37 @@ class ConfirmDialog(ModalScreen[bool]):
     @on(Button.Pressed, "#confirm-continue")
     def confirm(self) -> None:
         self.dismiss(True)
+
+
+class SecretInputDialog(ModalScreen[str | None]):
+    """Collect one credential without displaying or logging it."""
+
+    def __init__(self, title: str, detail: str) -> None:
+        super().__init__()
+        self.dialog_title = title
+        self.detail = detail
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="secret-input-dialog"):
+            yield Static(self.dialog_title, classes="dialog-title")
+            yield Static(self.detail, classes="dialog-detail")
+            yield Label("API token", classes="field-label")
+            yield Input(password=True, id="secret-input-value")
+            with Horizontal(classes="dialog-actions"):
+                yield Button("Cancel", id="secret-input-cancel")
+                yield Button("Encrypt and save", id="secret-input-save", variant="success")
+
+    @on(Button.Pressed, "#secret-input-cancel")
+    def cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#secret-input-save")
+    def save(self) -> None:
+        value = self.query_one("#secret-input-value", Input).value.strip()
+        if not value:
+            self.app.notify("Enter the API token", severity="warning")
+            return
+        self.dismiss(value)
 
 
 class CopyCommandDialog(ModalScreen[bool]):
@@ -428,7 +459,7 @@ class ConfigurationPage(VerticalScroll):
         self.post_message(self.Saved(config))
 
 
-class OperationsPage(Vertical):
+class OperationsPage(VerticalScroll):
     def compose(self) -> ComposeResult:
         yield Static("Operations", classes="page-title")
         yield Static(
@@ -546,18 +577,20 @@ class ControlPlaneApp(App[None]):
     .form-actions { height: 4; align-horizontal: right; }
     .form-actions Button { margin-left: 1; }
     #operations-grid {
-        grid-size: 3 2;
+        grid-size: 3 3;
         grid-columns: 1fr 1fr 1fr;
-        grid-rows: 11 11;
+        grid-rows: 9 9 9;
         grid-gutter: 1;
-        height: 23;
+        height: 29;
     }
     .operation-title { height: 2; text-style: bold; color: $hl-text; }
     .operation-card Button { dock: bottom; width: 1fr; }
-    #activity-log { height: 1fr; min-height: 12; background: #050b13; border: solid $hl-border; padding: 1; }
+    #activity-log { height: 11; min-height: 9; background: #050b13; border: solid $hl-border; padding: 1; }
     ConfirmDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
+    SecretInputDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     CopyCommandDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     #confirm-dialog { width: 64; height: auto; background: $hl-surface; border: thick $hl-danger; padding: 2; }
+    #secret-input-dialog { width: 72; height: auto; background: $hl-surface; border: thick $hl-accent; padding: 2; }
     .dialog-title { height: 2; text-style: bold; }
     .dialog-detail { height: auto; color: $hl-muted; margin-bottom: 1; }
     .dialog-actions { height: 3; align-horizontal: right; }
@@ -667,7 +700,18 @@ class ControlPlaneApp(App[None]):
             if not confirmed:
                 log.write("[yellow]Cancelled; no changes were made.[/yellow]\n")
                 return
-        result: OperationResult = await asyncio.to_thread(execute, identifier, self.config_path)
+        if operation.secret_prompt is not None:
+            secret = await self.push_screen_wait(
+                SecretInputDialog(operation.title, operation.secret_prompt)
+            )
+            if secret is None:
+                log.write("[yellow]Cancelled; the encrypted credentials were unchanged.[/yellow]\n")
+                return
+            result = await asyncio.to_thread(
+                execute_with_secret, identifier, secret, self.config_path
+            )
+        else:
+            result = await asyncio.to_thread(execute, identifier, self.config_path)
         for line in result.lines:
             log.write(line)
         if (
