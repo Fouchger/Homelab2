@@ -4,11 +4,13 @@ import subprocess
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
 from homelabctl.configuration import save_config
 from homelabctl.models import HomelabConfig, default_config
 from homelabctl.operations import check_tofu_foundation
 from homelabctl.secrets import ProviderSecret, SecretBundle
-from homelabctl.tofu import TofuCheckResult, check_foundation, tofu_variables
+from homelabctl.tofu import TofuCheckResult, TofuError, check_foundation, tofu_variables
 
 
 def test_validated_config_maps_to_typed_non_secret_inputs() -> None:
@@ -34,6 +36,26 @@ def test_validated_config_maps_to_typed_non_secret_inputs() -> None:
     assert values["automation"] == {"ssh_public_keys": []}
     assert values["proxmox_lxcs"] == []
     assert values["cloudflare_records"] == []
+
+
+def test_public_key_file_is_resolved_for_opentofu(tmp_path: Path) -> None:
+    public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest automation"
+    public_key_path = tmp_path / "homelab_ed25519.pub"
+    public_key_path.write_text(public_key + "\n", encoding="utf-8")
+    data = default_config().model_dump(mode="json")
+    data["automation"]["ssh_public_key_files"] = [str(public_key_path)]
+
+    values = tofu_variables(HomelabConfig.model_validate(data))
+
+    assert values["automation"] == {"ssh_public_keys": [public_key]}
+
+
+def test_missing_public_key_file_has_an_actionable_error(tmp_path: Path) -> None:
+    data = default_config().model_dump(mode="json")
+    data["automation"]["ssh_public_key_files"] = [str(tmp_path / "missing.pub")]
+
+    with pytest.raises(TofuError, match="Unable to read automation SSH public key file"):
+        tofu_variables(HomelabConfig.model_validate(data))
 
 
 def test_managed_resources_map_deterministically() -> None:

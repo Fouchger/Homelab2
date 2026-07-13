@@ -42,6 +42,16 @@ SSH_PUBLIC_KEY_TYPES = (
 )
 
 
+def normalize_ssh_public_key(value: str) -> str:
+    normalized = value.strip()
+    if "\n" in normalized or "\r" in normalized:
+        raise ValueError("SSH public keys must each fit on one line")
+    parts = normalized.split()
+    if len(parts) < 2 or parts[0] not in SSH_PUBLIC_KEY_TYPES:
+        raise ValueError("enter OpenSSH-format public keys")
+    return normalized
+
+
 def normalize_domain(value: str, *, example: str) -> str:
     normalized = value.strip().lower().rstrip(".")
     if not DOMAIN_PATTERN.fullmatch(normalized):
@@ -275,6 +285,7 @@ class AutomationSettings(StrictModel):
     ssh_user: str = "automation"
     ssh_private_key: str = "~/.ssh/homelab_ed25519"
     ssh_public_keys: list[str] = Field(default_factory=list, max_length=10)
+    ssh_public_key_files: list[str] = Field(default_factory=list, max_length=10)
     become: bool = True
 
     @field_validator("ssh_user")
@@ -296,15 +307,19 @@ class AutomationSettings(StrictModel):
     @field_validator("ssh_public_keys")
     @classmethod
     def validate_public_keys(cls, value: list[str]) -> list[str]:
-        normalized = [key.strip() for key in value]
-        for key in normalized:
-            if "\n" in key or "\r" in key:
-                raise ValueError("SSH public keys must each fit on one line")
-            parts = key.split()
-            if len(parts) < 2 or parts[0] not in SSH_PUBLIC_KEY_TYPES:
-                raise ValueError("enter OpenSSH-format public keys")
+        normalized = [normalize_ssh_public_key(key) for key in value]
         if len(normalized) != len(set(normalized)):
             raise ValueError("SSH public keys must not contain duplicates")
+        return normalized
+
+    @field_validator("ssh_public_key_files")
+    @classmethod
+    def validate_public_key_files(cls, value: list[str]) -> list[str]:
+        normalized = [path.strip() for path in value]
+        if any(not path or "\n" in path or "\r" in path for path in normalized):
+            raise ValueError("SSH public key file paths must be non-empty single-line values")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("SSH public key file paths must not contain duplicates")
         return normalized
 
 
@@ -354,8 +369,12 @@ class HomelabConfig(StrictModel):
                 raise ValueError(
                     f"container {container.key} address must be a usable, unreserved host"
                 )
-        if containers and not self.automation.ssh_public_keys:
-            raise ValueError("at least one automation SSH public key is required for containers")
+        if containers and not (
+            self.automation.ssh_public_keys or self.automation.ssh_public_key_files
+        ):
+            raise ValueError(
+                "at least one automation SSH public key or public key file is required for containers"
+            )
 
         domain_set = set(self.cloudflare.domains)
         record_keys = [record.resource_key for record in self.cloudflare.records]

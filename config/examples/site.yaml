@@ -27,6 +27,7 @@ automation:
   ssh_user: automation
   ssh_private_key: ~/.ssh/homelab_ed25519
   ssh_public_keys: []
+  ssh_public_key_files: []
   become: true
 deployment:
   channel: stable

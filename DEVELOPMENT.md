@@ -86,9 +86,10 @@ The `v0.3.0` interface remains plan-only. Live changes use an explicitly reviewe
 acceptance; the guarded control-panel apply workflow remains in Phase 4 issue #9.
 
 Implementation started on 2026-07-13. The typed site model, deterministic input mapping, pinned
-providers, LXC and DNS resources, structured outputs, and offline example plan are implemented
-locally. Completion still requires review, publication, and disposable live create/update/destroy
-acceptance against the target Proxmox and Cloudflare accounts.
+providers, guarded guest-automation SSH-key preparation, LXC and DNS resources, structured
+outputs, and offline example plan are implemented locally. Completion still requires review,
+publication, and disposable live create/update/destroy acceptance against the target Proxmox and
+Cloudflare accounts.
 
 ## Engineering rules
 

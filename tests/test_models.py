@@ -131,6 +131,10 @@ def test_container_requires_management_address_and_public_key() -> None:
     with pytest.raises(ValidationError, match="SSH public key"):
         HomelabConfig.model_validate(data)
 
+    data["automation"]["ssh_public_key_files"] = ["~/.ssh/homelab_ed25519.pub"]
+    config = HomelabConfig.model_validate(data)
+    assert config.automation.ssh_public_key_files == ["~/.ssh/homelab_ed25519.pub"]
+
 
 def test_public_cloudflare_records_are_normalized() -> None:
     data = default_config().model_dump(mode="json")

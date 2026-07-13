@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from homelabctl.configuration import find_project_root, load_config
-from homelabctl.models import HomelabConfig
+from homelabctl.models import HomelabConfig, normalize_ssh_public_key
 from homelabctl.proxmox_bootstrap import DiagnosticLog
 from homelabctl.secrets import load_secrets, resolve_secrets_path
 
@@ -28,6 +28,28 @@ class TofuCheckResult:
 
 def infrastructure_directory(start: Path | None = None) -> Path:
     return find_project_root(start) / "infrastructure"
+
+
+def resolved_ssh_public_keys(config: HomelabConfig) -> list[str]:
+    """Load configured public-key files and return normalized OpenSSH keys."""
+
+    public_keys = list(config.automation.ssh_public_keys)
+    for configured_path in config.automation.ssh_public_key_files:
+        path = Path(configured_path).expanduser()
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise TofuError(f"Unable to read automation SSH public key file: {path}") from exc
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        if len(lines) != 1:
+            raise TofuError(f"Automation SSH public key file must contain exactly one key: {path}")
+        try:
+            public_keys.append(normalize_ssh_public_key(lines[0]))
+        except ValueError as exc:
+            raise TofuError(f"Invalid automation SSH public key file: {path}") from exc
+    if len(public_keys) != len(set(public_keys)):
+        raise TofuError("Automation SSH public keys resolve to duplicate values")
+    return sorted(public_keys)
 
 
 def tofu_variables(config: HomelabConfig) -> dict[str, object]:
@@ -55,7 +77,7 @@ def tofu_variables(config: HomelabConfig) -> dict[str, object]:
             "vlan_id": config.network.vlan_id,
         },
         "automation": {
-            "ssh_public_keys": config.automation.ssh_public_keys,
+            "ssh_public_keys": resolved_ssh_public_keys(config),
         },
         "cloudflare_domains": config.cloudflare.domains,
         "proxmox_lxcs": [

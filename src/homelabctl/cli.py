@@ -22,6 +22,7 @@ from homelabctl.configuration import (
     write_schema,
 )
 from homelabctl.doctor import checks_succeeded, run_checks
+from homelabctl.operations import prepare_automation_ssh
 from homelabctl.proxmox_bootstrap import (
     DEFAULT_ROLE_ID,
     ProxmoxBootstrapError,
@@ -157,6 +158,17 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_argument(tofu_check)
     _add_secrets_argument(tofu_check)
 
+    infrastructure = subcommands.add_parser(
+        "infrastructure", help="prepare and validate infrastructure prerequisites"
+    )
+    infrastructure_commands = infrastructure.add_subparsers(
+        dest="infrastructure_command", required=True
+    )
+    infrastructure_ssh = infrastructure_commands.add_parser(
+        "ssh-key", help="create and configure the guest automation SSH key"
+    )
+    _add_config_argument(infrastructure_ssh)
+
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
     schema.add_argument("--output", type=Path, default=Path("config/schema/site.schema.json"))
     return parser
@@ -270,6 +282,15 @@ def _tofu_check(args: argparse.Namespace, console: Console) -> int:
     return 0
 
 
+def _infrastructure_ssh_key(config_path: Path, console: Console) -> int:
+    result = prepare_automation_ssh(config_path)
+    style = "green" if result.succeeded else "red"
+    console.print(f"[{style}]{result.title}[/{style}]")
+    for line in result.lines:
+        console.print(f"- {line}")
+    return 0 if result.succeeded else 2
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -316,6 +337,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _proxmox_bootstrap(args, console)
         if command == "tofu" and args.tofu_command == "check":
             return _tofu_check(args, console)
+        if command == "infrastructure" and args.infrastructure_command == "ssh-key":
+            return _infrastructure_ssh_key(resolve_config_path(args.config), console)
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")

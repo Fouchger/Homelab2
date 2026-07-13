@@ -63,6 +63,11 @@ Infrastructure actions must not be registered until their underlying implementat
 error handling, and tests exist. Destructive actions must show a plan and use the reusable
 confirmation dialog.
 
+**Prepare guest automation SSH key** creates the configured Ed25519 identity only when both key
+files are absent. It verifies an existing pair and its SHA-256 fingerprint, refuses incomplete or
+mismatched pairs, applies restrictive file permissions, and adds the public-key path to the site
+configuration. Private key material is never displayed or logged.
+
 **Check OpenTofu foundation** is intentionally non-destructive. It initializes only locked
 providers, validates generated typed inputs, and writes a saved plan to the ignored `artifacts/`
 directory. It never applies a plan. See [`OPENTOFU_STATE.md`](OPENTOFU_STATE.md).

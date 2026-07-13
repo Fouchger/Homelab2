@@ -21,6 +21,14 @@
           "title": "Ssh Public Keys",
           "type": "array"
         },
+        "ssh_public_key_files": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Ssh Public Key Files",
+          "type": "array"
+        },
         "become": {
           "default": true,
           "title": "Become",

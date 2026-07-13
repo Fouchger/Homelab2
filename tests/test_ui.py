@@ -228,6 +228,7 @@ async def test_opentofu_operation_is_reachable_in_very_wide_layout(
     async with app.run_test(size=(140, 48)) as pilot:
         await pilot.press("5")
         await pilot.pause()
+        assert app.query_one("#operation-automation-ssh", Button)
         await pilot.click("#operation-tofu-check")
         await pilot.pause()
 

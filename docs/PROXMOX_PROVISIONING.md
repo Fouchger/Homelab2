@@ -18,15 +18,35 @@ the initial root bootstrap with the normal automation account and baseline confi
 - Every VM ID, hostname, and management address is unused.
 - The address includes the management-network prefix and is not the gateway, network, or broadcast
   address.
-- `automation.ssh_public_keys` contains at least one real OpenSSH public key.
+- `automation.ssh_public_key_files` references at least one real OpenSSH public-key file, or
+  `automation.ssh_public_keys` contains an inline public key.
 
 Find the exact template filename on Proxmox before editing the site YAML. Template IDs use the form
 `storage:vztmpl/filename`, for example
 `local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst`.
 
+From the control panel, open **Infrastructure** and run **Prepare guest automation SSH key**. After
+reviewing its plan, confirm once. The action:
+
+- creates `~/.ssh/homelab_ed25519` and `~/.ssh/homelab_ed25519.pub` when both are absent;
+- verifies and preserves an existing complete pair;
+- refuses incomplete, mismatched, or passphrase-dependent automation keys;
+- reports only the public SHA-256 fingerprint;
+- adds `~/.ssh/homelab_ed25519.pub` to `automation.ssh_public_key_files`.
+
+The unattended equivalent is:
+
+```bash
+task infrastructure:ssh-key CONFIG=config/sites/local.yaml
+```
+
+Do not reuse `proxmox_bootstrap_ed25519`: that key authorizes privileged access to the Proxmox
+host and should retain its narrower bootstrap purpose.
+
 ## Configuration
 
-Add the public bootstrap key and one or more containers to the ignored site file:
+The key action maintains the automation section. Add one or more containers to the ignored site
+file:
 
 ```yaml
 proxmox:
@@ -56,10 +76,15 @@ proxmox:
 automation:
   ssh_user: automation
   ssh_private_key: ~/.ssh/homelab_ed25519
-  ssh_public_keys:
-    - ssh-ed25519 REPLACE_WITH_THE_REAL_PUBLIC_KEY automation
+  ssh_public_keys: []
+  ssh_public_key_files:
+    - ~/.ssh/homelab_ed25519.pub
   become: true
 ```
+
+The site file stores only the public-key path. During planning, the control plane reads that file,
+validates its single OpenSSH key, and passes the public key text to OpenTofu. The private key is
+never placed in generated OpenTofu variables.
 
 `key` is the OpenTofu resource identity. Keep it unchanged when renaming or resizing a guest.
 Reordering the list is safe. Changing a key declares one resource removed and another added.

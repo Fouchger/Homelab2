@@ -73,8 +73,9 @@ task menu
 
 Its purpose-based Setup and Proxmox sections initialize encrypted secrets, prepare the dedicated
 Proxmox SSH public key, install it with an interactive `ssh-copy-id` dialog, and perform the
-plan/confirm/apply API identity bootstrap. Infrastructure contains the safe OpenTofu foundation
-check, while Maintenance contains guarded code updates. Each section shares a session activity
+plan/confirm/apply API identity bootstrap. Infrastructure creates and configures the dedicated
+guest-automation SSH key and contains the safe OpenTofu foundation check, while Maintenance
+contains guarded code updates. Each section shares a session activity
 history with a portable plain-text copy view for support. It supports native terminal selection,
 an optional direct clipboard request, and an exported `logs/activity-report.txt` fallback. CLI and
 Task commands remain available for unattended operation and recovery. See
@@ -119,6 +120,7 @@ task secrets:edit      Edit credentials through SOPS
 task secrets:check     Decrypt and validate without displaying values
 task proxmox:bootstrap:plan  Preview API identity changes
 task proxmox:bootstrap       Create/reconcile the API user, role, ACL, and token
+task infrastructure:ssh-key Create and configure the guest automation SSH key
 task tofu:check              Validate typed inputs and create a non-destructive plan
 task check             Run formatting, linting, tests, and config validation
 ```

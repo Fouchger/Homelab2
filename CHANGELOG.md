@@ -8,6 +8,9 @@ All notable changes to this project are documented in this file.
 
 - Strict site models for stable-key, unprivileged Debian LXC guests with static management
   addressing, sizing, template, lifecycle, tags, and public-key bootstrap settings.
+- Dedicated automation public-key file references with validated in-memory loading for OpenTofu.
+- Guarded Infrastructure menu and CLI actions that create, verify, fingerprint, permission, and
+  configure the dedicated guest automation SSH identity without exposing private material.
 - Strict multi-zone Cloudflare A, AAAA, and CNAME records with exact ownership identities,
   public-target validation, safe TTL/proxy defaults, and internal-domain leakage prevention.
 - Deterministic OpenTofu Proxmox container and Cloudflare DNS resources with structured,

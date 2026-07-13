@@ -9,12 +9,18 @@ from pathlib import Path
 
 import yaml
 
+from homelabctl.automation_ssh import (
+    AutomationSshError,
+    ensure_automation_ssh_key,
+    resolve_automation_ssh_key,
+)
 from homelabctl.configuration import (
     ConfigurationError,
     find_project_root,
     load_config,
     redacted_mapping,
     resolve_config_path,
+    save_config,
 )
 from homelabctl.doctor import checks_succeeded, run_checks
 from homelabctl.proxmox_bootstrap import (
@@ -362,6 +368,61 @@ def check_tofu_foundation(path: Path) -> OperationResult:
     )
 
 
+def automation_ssh_plan(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+    except ConfigurationError as exc:
+        return OperationResult(False, "Guest automation SSH key plan", tuple(str(exc).splitlines()))
+    private_key = resolve_automation_ssh_key(config.automation.ssh_private_key)
+    return OperationResult(
+        True,
+        "Guest automation SSH key plan",
+        (
+            f"Private key: create if absent at {private_key}",
+            f"Public key: create at {private_key}.pub",
+            "Key type: Ed25519 without a passphrase for unattended automation",
+            "Existing complete key pairs will be verified and never replaced",
+            "Incomplete or mismatched key pairs will be rejected",
+            "The public-key path will be added to the site configuration if absent",
+            "Private key material will never be displayed or logged",
+        ),
+    )
+
+
+def prepare_automation_ssh(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+        key = ensure_automation_ssh_key(config.automation.ssh_private_key)
+        configured_public_key = f"{config.automation.ssh_private_key}.pub"
+        already_configured = any(
+            Path(item).expanduser().resolve() == key.public_key
+            for item in config.automation.ssh_public_key_files
+        )
+        if not already_configured:
+            config.automation.ssh_public_key_files = [
+                *config.automation.ssh_public_key_files,
+                configured_public_key,
+            ]
+            save_config(config, path)
+    except (AutomationSshError, ConfigurationError) as exc:
+        return OperationResult(False, "Guest automation SSH key", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Guest automation SSH key",
+        (
+            f"Private key: {'created' if key.created else 'already present'} at {key.private_key}",
+            f"Public key: verified at {key.public_key}",
+            f"Fingerprint: {key.fingerprint}",
+            (
+                "Site configuration: public-key path already present"
+                if already_configured
+                else f"Site configuration: added {configured_public_key}"
+            ),
+            "The key is ready for OpenTofu guest provisioning",
+        ),
+    )
+
+
 OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "validate",
@@ -435,6 +496,15 @@ OPERATIONS: tuple[Operation, ...] = (
         section="proxmox",
         destructive=True,
         visible=False,
+    ),
+    Operation(
+        "automation-ssh",
+        "Prepare guest automation SSH key",
+        "Create and configure the dedicated key used to bootstrap managed guests.",
+        prepare_automation_ssh,
+        section="infrastructure",
+        destructive=True,
+        plan=automation_ssh_plan,
     ),
     Operation(
         "tofu-check",
