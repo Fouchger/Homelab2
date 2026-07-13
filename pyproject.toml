@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.27,<2"]
+requires = ["hatchling>=1.31.0,<2"]
 build-backend = "hatchling.build"
 
 [project]
@@ -21,7 +21,7 @@ homelabctl = "homelabctl.cli:main"
 
 [dependency-groups]
 dev = [
-  "pytest>=8.4,<9",
+  "pytest>=9.1.1,<10",
   "pytest-asyncio>=1.1,<2",
   "ruff>=0.12,<1",
 ]
