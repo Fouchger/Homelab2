@@ -77,6 +77,19 @@ tasks:
     cmds:
       - uv run --locked --no-dev homelabctl proxmox bootstrap --config "{{.CONFIG}}" --secrets "{{.SECRETS}}" --apply
 
+  tofu:check:
+    desc: Validate the OpenTofu foundation and create a non-destructive plan
+    cmds:
+      - uv run --locked --no-dev homelabctl tofu check --config "{{.CONFIG}}" --secrets "{{.SECRETS}}"
+
+  tofu:ci:
+    desc: Check OpenTofu formatting, initialization, validation, and the example plan
+    cmds:
+      - tofu -chdir=infrastructure fmt -check -recursive
+      - tofu -chdir=infrastructure init -backend=false -input=false -lockfile=readonly
+      - tofu -chdir=infrastructure validate
+      - tofu -chdir=infrastructure plan -refresh=false -lock=false -input=false -var-file=example.tfvars.json -out=example.tfplan
+
   schema:
     desc: Regenerate the site JSON Schema
     cmds:
@@ -101,3 +114,4 @@ tasks:
       - task: config:validate
         vars:
           CONFIG: config/examples/site.yaml
+      - task: tofu:ci

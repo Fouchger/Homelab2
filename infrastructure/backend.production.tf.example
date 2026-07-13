@@ -1,0 +1,5 @@
+# Copy this file to backend.production.tf only after the production backend exists.
+# The copied file is ignored because backend selection is site-specific.
+terraform {
+  backend "s3" {}
+}

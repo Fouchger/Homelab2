@@ -23,6 +23,8 @@ All notable changes to this project are documented in this file.
   rotation requires a second confirmation and leaves the user and role intact.
 - Persistent, Git-ignored Proxmox bootstrap diagnostics with sanitized SSH/`pveum` output and API
   verification status, reason, and error details.
+- Version-constrained OpenTofu foundation with locked Proxmox provider, typed site inputs, a menu
+  validation/plan operation, CI checks, and documented local and locked remote-state strategies.
 
 ## [0.1.0] - 2026-07-12
 

@@ -8,6 +8,7 @@ readonly BRANCH="${HOMELAB_BRANCH:-main}"
 readonly INSTALL_DIR="${HOMELAB_INSTALL_DIR:-${HOME}/Homelab2}"
 readonly BIN_DIR="${HOMELAB_BIN_DIR:-/usr/local/bin}"
 readonly SOPS_VERSION="${HOMELAB_SOPS_VERSION:-3.13.2}"
+readonly TOFU_VERSION="${HOMELAB_TOFU_VERSION:-1.12.1}"
 
 APT_UPDATED=0
 
@@ -63,6 +64,7 @@ install_system_prerequisites() {
   command -v git >/dev/null 2>&1 || missing_packages+=(git)
   command -v age >/dev/null 2>&1 || missing_packages+=(age)
   command -v ssh >/dev/null 2>&1 || missing_packages+=(openssh-client)
+  command -v unzip >/dev/null 2>&1 || missing_packages+=(unzip)
   dpkg-query -W -f='${Status}' ca-certificates 2>/dev/null | grep -Fq 'install ok installed' || missing_packages+=(ca-certificates)
 
   if [ "${#missing_packages[@]}" -eq 0 ]; then
@@ -73,6 +75,38 @@ install_system_prerequisites() {
   apt_update_once
   info "Installing system prerequisites: ${missing_packages[*]}"
   run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing_packages[@]}"
+}
+
+install_tofu() {
+  local architecture
+  local archive_name
+  local temporary_directory
+
+  if command -v tofu >/dev/null 2>&1; then
+    info "OpenTofu is already installed"
+    return
+  fi
+
+  case "$(uname -m)" in
+    x86_64 | amd64) architecture="amd64" ;;
+    aarch64 | arm64) architecture="arm64" ;;
+    *) fail "OpenTofu installation does not support architecture: $(uname -m)" ;;
+  esac
+
+  archive_name="tofu_${TOFU_VERSION}_linux_${architecture}.zip"
+  temporary_directory="$(mktemp -d)"
+  info "Installing OpenTofu ${TOFU_VERSION}"
+  curl -fsSLo "${temporary_directory}/${archive_name}" --proto '=https' --tlsv1.2 --retry 3 \
+    "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${archive_name}"
+  curl -fsSLo "${temporary_directory}/SHA256SUMS" --proto '=https' --tlsv1.2 --retry 3 \
+    "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
+  (
+    cd "$temporary_directory"
+    grep -F " ${archive_name}" SHA256SUMS | sha256sum -c -
+    unzip -q -- "$archive_name"
+  )
+  run_as_root install -m 0755 -- "${temporary_directory}/tofu" "${BIN_DIR}/tofu"
+  rm -rf -- "$temporary_directory"
 }
 
 install_sops() {
@@ -170,6 +204,7 @@ main() {
   install_uv
   install_task
   install_sops
+  install_tofu
   clone_or_update_repository
 
   printf '\nInstallation complete.\n\n'

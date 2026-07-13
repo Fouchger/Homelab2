@@ -73,7 +73,12 @@ Its Operations page initializes encrypted secrets, prepares the dedicated Proxmo
 installs it with an interactive `ssh-copy-id` dialog, and performs the plan/confirm/apply API
 identity bootstrap. Every displayed authorization command has a dedicated copy button. CLI and Task
 commands remain available for unattended operation and recovery. See
-[`docs/SECRETS.md`](docs/SECRETS.md) for identity backup, recovery, and rotation.
+[`docs/SECRETS.md`](docs/SECRETS.md) for identity backup, recovery, and rotation, and
+[`docs/OPENTOFU_STATE.md`](docs/OPENTOFU_STATE.md) for provider and state operations.
+
+The Operations page also exposes the safe OpenTofu foundation check. It initializes the locked
+provider, validates typed inputs generated from the active site, and saves a plan without applying
+or changing infrastructure.
 
 ## Configuration policy
 
@@ -103,6 +108,7 @@ task secrets:edit      Edit credentials through SOPS
 task secrets:check     Decrypt and validate without displaying values
 task proxmox:bootstrap:plan  Preview API identity changes
 task proxmox:bootstrap       Create/reconcile the API user, role, ACL, and token
+task tofu:check              Validate typed inputs and create a non-destructive plan
 task check             Run formatting, linting, tests, and config validation
 ```
 

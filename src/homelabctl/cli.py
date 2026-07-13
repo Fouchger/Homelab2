@@ -35,6 +35,7 @@ from homelabctl.secrets import (
     resolve_secrets_path,
     write_sops_policy,
 )
+from homelabctl.tofu import TofuError, check_foundation
 
 
 def _add_config_argument(parser: argparse.ArgumentParser) -> None:
@@ -114,6 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     proxmox_bootstrap.add_argument(
         "--ssh-target", help="administrator SSH target (default: root@Proxmox-host)"
     )
+
     proxmox_bootstrap.add_argument(
         "--ssh-private-key", type=Path, help="dedicated administrator SSH private key"
     )
@@ -126,6 +128,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="explicitly replace an existing token and update SOPS",
     )
+
+    tofu = subcommands.add_parser("tofu", help="check the OpenTofu infrastructure foundation")
+    tofu_commands = tofu.add_subparsers(dest="tofu_command", required=True)
+    tofu_check = tofu_commands.add_parser(
+        "check", help="initialize providers, validate inputs, and create a saved plan"
+    )
+    _add_config_argument(tofu_check)
+    _add_secrets_argument(tofu_check)
 
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
     schema.add_argument("--output", type=Path, default=Path("config/schema/site.schema.json"))
@@ -210,6 +220,14 @@ def _proxmox_bootstrap(args: argparse.Namespace, console: Console) -> int:
     return 0
 
 
+def _tofu_check(args: argparse.Namespace, console: Console) -> int:
+    result = check_foundation(resolve_config_path(args.config), args.secrets)
+    console.print("[green]OpenTofu foundation checks passed[/]")
+    console.print(f"[green]Non-destructive plan:[/] {result.plan_path}")
+    console.print(f"[cyan]Diagnostic log:[/] {result.diagnostic_log}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -252,11 +270,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return _secrets_check(resolve_config_path(args.config), args.secrets, console)
         if command == "proxmox" and args.proxmox_command == "bootstrap":
             return _proxmox_bootstrap(args, console)
+        if command == "tofu" and args.tofu_command == "check":
+            return _tofu_check(args, console)
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
             return 0
-    except (ConfigurationError, ProxmoxBootstrapError, SecretError) as exc:
+    except (ConfigurationError, ProxmoxBootstrapError, SecretError, TofuError) as exc:
         console.print(f"[red]{exc}[/red]")
         return 2
 

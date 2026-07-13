@@ -51,6 +51,10 @@ Infrastructure actions must not be registered until their underlying implementat
 error handling, and tests exist. Destructive actions must show a plan and use the reusable
 confirmation dialog.
 
+**Check OpenTofu foundation** is intentionally non-destructive. It initializes only locked
+providers, validates generated typed inputs, and writes a saved plan to the ignored `artifacts/`
+directory. It never applies a plan. See [`OPENTOFU_STATE.md`](OPENTOFU_STATE.md).
+
 ## Secrets
 
 The normal configuration object deliberately has no password or token-secret fields. Token IDs,

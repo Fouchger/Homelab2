@@ -19,6 +19,8 @@ jobs:
     name: Lint and test
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      TOFU_VERSION: "1.12.1"
 
     steps:
       - name: Check out repository
@@ -32,6 +34,15 @@ jobs:
 
       - name: Synchronize locked environment
         run: uv sync --locked --all-groups
+
+      - name: Install checksum-verified OpenTofu
+        run: |
+          archive="tofu_${TOFU_VERSION}_linux_amd64.zip"
+          curl -fsSLO --proto '=https' --tlsv1.2 --retry 3 "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${archive}"
+          curl -fsSLO --proto '=https' --tlsv1.2 --retry 3 "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
+          grep -F " ${archive}" "tofu_${TOFU_VERSION}_SHA256SUMS" | sha256sum -c -
+          unzip -q "$archive"
+          sudo install -m 0755 tofu /usr/local/bin/tofu
 
       - name: Check formatting
         run: uv run --locked ruff format --check .
@@ -50,3 +61,9 @@ jobs:
           uv run --locked homelabctl schema --output config/schema/site.schema.json
           git diff --exit-code -- config/schema/site.schema.json
 
+      - name: Check OpenTofu foundation and example plan
+        run: |
+          tofu -chdir=infrastructure fmt -check -recursive
+          tofu -chdir=infrastructure init -backend=false -input=false -lockfile=readonly
+          tofu -chdir=infrastructure validate
+          tofu -chdir=infrastructure plan -refresh=false -lock=false -input=false -var-file=example.tfvars.json -out=example.tfplan

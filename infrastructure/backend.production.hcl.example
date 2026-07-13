@@ -1,0 +1,9 @@
+# Copy to backend.production.hcl, replace the example values, and keep it out of Git.
+bucket       = "homelab-opentofu-state"
+key          = "homelab/production/opentofu.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true
+
+# S3-compatible private storage may also require endpoints and path-style options.
+# Supply backend credentials through the backend's supported environment variables.

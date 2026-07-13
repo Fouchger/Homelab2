@@ -30,6 +30,7 @@ from homelabctl.secrets import (
     resolve_age_identity_path,
     resolve_secrets_path,
 )
+from homelabctl.tofu import TofuError, check_foundation
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,6 +247,25 @@ def recover_proxmox_token(path: Path) -> OperationResult:
     )
 
 
+def check_tofu_foundation(path: Path) -> OperationResult:
+    try:
+        result = check_foundation(path)
+    except (ConfigurationError, SecretError, TofuError) as exc:
+        return OperationResult(False, "OpenTofu foundation check", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "OpenTofu foundation check",
+        (
+            "OpenTofu formatting passed",
+            "Provider lock initialization passed",
+            "OpenTofu configuration validation passed",
+            f"Non-destructive plan saved at {result.plan_path}",
+            f"Generated non-secret inputs: {result.variables_path}",
+            f"Diagnostic log: {result.diagnostic_log}",
+        ),
+    )
+
+
 OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "validate",
@@ -296,6 +316,12 @@ OPERATIONS: tuple[Operation, ...] = (
         recover_proxmox_token,
         destructive=True,
         visible=False,
+    ),
+    Operation(
+        "tofu-check",
+        "Check OpenTofu foundation",
+        "Initialize locked providers, validate typed inputs, and create a non-destructive plan.",
+        check_tofu_foundation,
     ),
 )
 

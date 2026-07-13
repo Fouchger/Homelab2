@@ -61,6 +61,7 @@ async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(
         await pilot.click("#operation-secrets-init")
         await pilot.pause()
         assert isinstance(app.screen, ConfirmDialog)
+        await pilot.pause(0.05)
 
         await pilot.click("#confirm-cancel")
         await pilot.pause()
@@ -114,6 +115,7 @@ async def test_token_recovery_requires_a_second_explicit_confirmation(
         await pilot.click("#operation-recovery-test")
         await pilot.pause()
         assert isinstance(app.screen, ConfirmDialog)
+        await pilot.pause(0.05)
 
         await pilot.click("#confirm-cancel")
         await pilot.pause()
