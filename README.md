@@ -6,8 +6,8 @@ Proxmox LXC.
 
 ## Release status
 
-Phase 1, the control-plane foundation, is complete in `v0.1.0`. Phase 2 secure provisioning work
-is in progress. The completed foundation provides:
+Phase 1, the control-plane foundation, is complete in `v0.1.0`, and the Phase 2 secure provisioning
+foundation is complete in `v0.2.0`. The completed foundation provides:
 
 - a guided site configuration editor;
 - strict validation and rejection of unknown settings;
@@ -18,10 +18,10 @@ is in progress. The completed foundation provides:
 - a confirmation-dialog foundation for future destructive operations;
 - both interactive and unattended command-line operation.
 
-OpenTofu provisioning and Ansible deployment actions will be added step by step. The menu only
-shows operations that are actually implemented. See [`DEVELOPMENT.md`](DEVELOPMENT.md) for the
-sequenced roadmap and outstanding GitHub issues, and [`CHANGELOG.md`](CHANGELOG.md) for release
-history.
+Phase 3 will add Proxmox resources and multi-domain Cloudflare DNS. Ansible deployment follows in
+Phase 4. The menu only shows operations that are actually implemented. See
+[`DEVELOPMENT.md`](DEVELOPMENT.md) for the sequenced roadmap and outstanding GitHub issues, and
+[`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Quick start
 

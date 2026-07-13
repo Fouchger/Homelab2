@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## [0.2.0] - 2026-07-13
+
 ### Added
 
 - SOPS/age encrypted runtime-secret initialization, editing, validation, and readiness checks.
@@ -37,6 +39,20 @@ All notable changes to this project are documented in this file.
 - Independent provider-credential validation so an unfinished Proxmox placeholder does not block
   guided Cloudflare token setup.
 
+### Fixed
+
+- Restored reusable secure TLS and generic management-network defaults after site-specific values
+  were accidentally committed to the application model.
+
+### Verified
+
+- Production site configuration and SOPS/age credentials for Proxmox and two Cloudflare domains.
+- Idempotent Proxmox user, role, ACL, and separated API-token reconciliation over administrator
+  SSH, followed by successful token authentication to the Proxmox API.
+- OpenTofu formatting, locked provider initialization, validation, and non-destructive planning.
+- Guarded control-plane update reporting the GitHub version current.
+- Formatting, linting, example configuration validation, and the complete automated test suite.
+
 ## [0.1.0] - 2026-07-12
 
 ### Added
@@ -58,3 +74,4 @@ All notable changes to this project are documented in this file.
 - Formatting, linting, example configuration validation, and 14 automated tests on Linux.
 
 [0.1.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.1.0
+[0.2.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.2.0
