@@ -43,6 +43,8 @@ All notable changes to this project are documented in this file.
 
 - Restored reusable secure TLS and generic management-network defaults after site-specific values
   were accidentally committed to the application model.
+- Isolated OpenTofu binary extraction in CI so additional release-archive files cannot overwrite or
+  prompt on repository files.
 
 ### Verified
 
