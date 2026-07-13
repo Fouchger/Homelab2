@@ -47,6 +47,23 @@ async def test_navigation_and_first_run_save(tmp_path: Path) -> None:
     assert config.cloudflare.domains == ["example.com", "lab.example.net"]
 
 
+async def test_actions_are_grouped_in_meaningful_navigation_sections(tmp_path: Path) -> None:
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("4")
+        assert app.query_one("#pages").current == "proxmox"
+        assert app.query_one("#operation-proxmox-bootstrap", Button)
+
+        await pilot.press("6")
+        assert app.query_one("#pages").current == "maintenance"
+        assert app.query_one("#operation-update", Button)
+
+        await pilot.press("7")
+        assert app.query_one("#pages").current == "diagnostics"
+        assert app.query_one("#operation-doctor", Button)
+
+
 async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -164,9 +181,23 @@ async def test_opentofu_operation_is_reachable_in_very_wide_layout(
     app = ControlPlaneApp(tmp_path / "site.yaml")
 
     async with app.run_test(size=(140, 48)) as pilot:
-        await pilot.press("3")
+        await pilot.press("5")
         await pilot.pause()
         await pilot.click("#operation-tofu-check")
         await pilot.pause()
 
     execute.assert_called_once_with("tofu-check", app.config_path)
+
+
+async def test_activity_can_be_copied_as_plain_text(tmp_path: Path, monkeypatch) -> None:
+    execute = Mock(return_value=OperationResult(True, "OpenTofu", ("Validated",)))
+    monkeypatch.setattr("homelabctl.ui.execute", execute)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("5")
+        await pilot.click("#operation-tofu-check")
+        await pilot.pause()
+        await pilot.click("#copy-activity-infrastructure")
+
+        assert app.clipboard == "> Check OpenTofu foundation\nValidated\nCompleted\n"

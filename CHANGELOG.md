@@ -27,10 +27,14 @@ All notable changes to this project are documented in this file.
   validation/plan operation, CI checks, and documented local and locked remote-state strategies.
 - Guided masked Cloudflare-token capture through SOPS, required-credential readiness enforcement,
   and a responsive/scrollable operations grid that keeps every implemented action reachable.
-- Guarded control-plane updates from the Operations menu with a changed-file preview,
+- Guarded control-plane updates from the Maintenance menu with a changed-file preview,
   fast-forward-only Git protection, locked dependency synchronization, and runtime-file
   preservation; installer updates now ignore untracked runtime artifacts and identify tracked
   source changes precisely.
+- Purpose-based Setup, Proxmox, Infrastructure, Maintenance, and Diagnostics menu sections with
+  shared session activity and plain-text clipboard copying for support.
+- Independent provider-credential validation so an unfinished Proxmox placeholder does not block
+  guided Cloudflare token setup.
 
 ## [0.1.0] - 2026-07-12
 

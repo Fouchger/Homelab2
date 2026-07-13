@@ -206,7 +206,7 @@ class OverviewPage(VerticalScroll):
         yield Static("Deployment modules", classes="section-title")
         yield Static(
             "Encrypted-secret setup and the guarded Proxmox API identity bootstrap are available "
-            "in Operations. OpenTofu and Ansible actions will appear as they are implemented.",
+            "in their dedicated menu sections. OpenTofu checks are under Infrastructure.",
             classes="notice",
         )
 
@@ -459,23 +459,60 @@ class ConfigurationPage(VerticalScroll):
         self.post_message(self.Saved(config))
 
 
-class OperationsPage(VerticalScroll):
+ACTION_SECTIONS: dict[str, tuple[str, str]] = {
+    "setup": (
+        "Setup",
+        "Prepare and validate the control plane, configuration, and encrypted credentials.",
+    ),
+    "proxmox": (
+        "Proxmox",
+        "Establish administrator access and reconcile the least-privilege API identity.",
+    ),
+    "infrastructure": (
+        "Infrastructure",
+        "Validate infrastructure definitions and preview changes before deployment.",
+    ),
+    "maintenance": (
+        "Maintenance",
+        "Keep the control-plane software current through guarded, non-destructive updates.",
+    ),
+    "diagnostics": (
+        "Diagnostics",
+        "Inspect readiness, review effective settings, and copy session activity for support.",
+    ),
+}
+
+
+class ActionPage(VerticalScroll):
+    def __init__(self, section: str, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        self.section = section
+
     def compose(self) -> ComposeResult:
-        yield Static("Operations", classes="page-title")
-        yield Static(
-            "Run audited control-plane actions. Results remain visible in this session.",
-            classes="page-subtitle",
-        )
-        with Grid(id="operations-grid"):
-            for operation in OPERATIONS:
-                if not operation.visible:
-                    continue
+        title, subtitle = ACTION_SECTIONS[self.section]
+        operations = [
+            operation
+            for operation in OPERATIONS
+            if operation.visible and operation.section == self.section
+        ]
+        yield Static(title, classes="page-title")
+        yield Static(subtitle, classes="page-subtitle")
+        with Grid(classes=f"actions-grid action-count-{len(operations)}"):
+            for operation in operations:
                 with Vertical(classes="operation-card"):
                     yield Static(operation.title, classes="operation-title")
                     yield Static(operation.description, classes="muted")
                     yield Button("Run", id=f"operation-{operation.identifier}")
-        yield Static("Activity", classes="section-title")
-        yield RichLog(id="activity-log", markup=True, wrap=True, highlight=True)
+        with Horizontal(classes="activity-heading"):
+            yield Static("Session activity", classes="section-title")
+            yield Button("Copy activity", id=f"copy-activity-{self.section}")
+        yield RichLog(
+            id=f"activity-log-{self.section}",
+            classes="activity-log",
+            markup=True,
+            wrap=True,
+            highlight=True,
+        )
 
 
 class HelpPage(VerticalScroll):
@@ -486,8 +523,9 @@ class HelpPage(VerticalScroll):
         )
         yield Static("Keyboard", classes="section-title")
         yield Static(
-            "[b]1[/b] Overview    [b]2[/b] Configuration    [b]3[/b] Operations    "
-            "[b]?[/b] Help    [b]Q[/b] Quit",
+            "[b]1[/b] Overview   [b]2[/b] Configuration   [b]3[/b] Setup   "
+            "[b]4[/b] Proxmox   [b]5[/b] Infrastructure   [b]6[/b] Maintenance   "
+            "[b]7[/b] Diagnostics   [b]?[/b] Help   [b]Q[/b] Quit",
             classes="notice",
         )
         yield Static("Configuration policy", classes="section-title")
@@ -503,18 +541,30 @@ class HelpPage(VerticalScroll):
             "that change local security state or Proxmox always present a plan and confirmation.",
             classes="body-copy",
         )
+        yield Static("Activity and support", classes="section-title")
+        yield Static(
+            "Action results are retained across Setup, Proxmox, Infrastructure, Maintenance, "
+            "and Diagnostics for this session. Select Copy activity, or press C, to copy a "
+            "plain-text diagnostic transcript without colour markup or secret values.",
+            classes="body-copy",
+        )
 
 
 class ControlPlaneApp(App[None]):
     TITLE = "Homelab Control Plane"
-    SUB_TITLE = "Operations Console"
+    SUB_TITLE = "Management Console"
     ENABLE_COMMAND_PALETTE = False
     HORIZONTAL_BREAKPOINTS = [(0, "-compact"), (100, "-wide"), (140, "-very-wide")]
     BINDINGS: ClassVar = [
         ("q", "quit", "Quit"),
         ("1", "show_page('overview')", "Overview"),
         ("2", "show_page('configuration')", "Configuration"),
-        ("3", "show_page('operations')", "Operations"),
+        ("3", "show_page('setup')", "Setup"),
+        ("4", "show_page('proxmox')", "Proxmox"),
+        ("5", "show_page('infrastructure')", "Infrastructure"),
+        ("6", "show_page('maintenance')", "Maintenance"),
+        ("7", "show_page('diagnostics')", "Diagnostics"),
+        ("c", "copy_activity", "Copy activity"),
         ("?", "show_page('help')", "Help"),
     ]
 
@@ -546,7 +596,7 @@ class ControlPlaneApp(App[None]):
     .nav-button { width: 1fr; margin-bottom: 1; text-align: left; }
     #config-path { dock: bottom; height: auto; color: $hl-muted; padding: 1; }
     #pages { width: 1fr; height: 1fr; }
-    OverviewPage, ConfigurationPage, OperationsPage, HelpPage { padding: 2 3; }
+    OverviewPage, ConfigurationPage, ActionPage, HelpPage { padding: 2 3; }
     .page-title { height: 2; text-style: bold; color: $hl-text; }
     .page-subtitle { height: 3; color: $hl-muted; }
     .section-title { height: 2; margin-top: 1; text-style: bold; color: $hl-text; }
@@ -576,16 +626,19 @@ class ControlPlaneApp(App[None]):
     .feedback-success { color: $hl-success; }
     .form-actions { height: 4; align-horizontal: right; }
     .form-actions Button { margin-left: 1; }
-    #operations-grid {
-        grid-size: 3 3;
+    .actions-grid {
+        grid-size: 3 1;
         grid-columns: 1fr 1fr 1fr;
-        grid-rows: 9 9 9;
+        grid-rows: 9;
         grid-gutter: 1;
-        height: 29;
+        height: 9;
     }
     .operation-title { height: 2; text-style: bold; color: $hl-text; }
     .operation-card Button { dock: bottom; width: 1fr; }
-    #activity-log { height: 11; min-height: 9; background: #050b13; border: solid $hl-border; padding: 1; }
+    .activity-heading { height: 4; margin-top: 1; align-vertical: middle; }
+    .activity-heading .section-title { width: 1fr; margin-top: 0; }
+    .activity-heading Button { width: 20; }
+    .activity-log { height: 16; min-height: 9; background: #050b13; border: solid $hl-border; padding: 1; }
     ConfirmDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     SecretInputDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     CopyCommandDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
@@ -610,10 +663,14 @@ class ControlPlaneApp(App[None]):
     Screen.-compact #sidebar { display: none; }
     Screen.-compact OverviewPage,
     Screen.-compact ConfigurationPage,
-    Screen.-compact OperationsPage,
+    Screen.-compact ActionPage,
     Screen.-compact HelpPage { padding: 1 2; }
+    Screen.-compact .action-count-1 { grid-size: 1 1; grid-columns: 1fr; grid-rows: 9; height: 9; }
+    Screen.-compact .action-count-2 { grid-size: 1 2; grid-columns: 1fr; grid-rows: 9 9; height: 19; }
+    Screen.-compact .action-count-3 { grid-size: 1 3; grid-columns: 1fr; grid-rows: 9 9 9; height: 29; }
     Screen.-wide #sidebar { width: 22; }
     Screen.-wide #config-path { display: none; }
+    Screen.-wide .action-count-3 { grid-size: 2 2; grid-columns: 1fr 1fr; grid-rows: 9 9; height: 19; }
     Screen.-very-wide #sidebar { width: 28; }
     Screen.-very-wide #config-path { display: block; }
     """
@@ -621,7 +678,8 @@ class ControlPlaneApp(App[None]):
     def __init__(self, config_path: Path, *, initial_page: str = "overview") -> None:
         super().__init__()
         self.config_path = config_path
-        self.initial_page = initial_page
+        self.initial_page = "setup" if initial_page == "operations" else initial_page
+        self._activity_lines: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -632,13 +690,18 @@ class ControlPlaneApp(App[None]):
                     "1  Overview", id="nav-overview", classes="nav-button", variant="primary"
                 )
                 yield Button("2  Configuration", id="nav-configuration", classes="nav-button")
-                yield Button("3  Operations", id="nav-operations", classes="nav-button")
+                yield Button("3  Setup", id="nav-setup", classes="nav-button")
+                yield Button("4  Proxmox", id="nav-proxmox", classes="nav-button")
+                yield Button("5  Infrastructure", id="nav-infrastructure", classes="nav-button")
+                yield Button("6  Maintenance", id="nav-maintenance", classes="nav-button")
+                yield Button("7  Diagnostics", id="nav-diagnostics", classes="nav-button")
                 yield Button("?  Help", id="nav-help", classes="nav-button")
                 yield Static(f"CONFIG\n{self.config_path}", id="config-path")
             with ContentSwitcher(initial=self.initial_page, id="pages"):
                 yield OverviewPage(self.config_path, id="overview")
                 yield ConfigurationPage(self.config_path, id="configuration")
-                yield OperationsPage(id="operations")
+                for section in ACTION_SECTIONS:
+                    yield ActionPage(section, id=section)
                 yield HelpPage(id="help")
         yield Footer()
 
@@ -650,7 +713,7 @@ class ControlPlaneApp(App[None]):
 
     def show_page(self, page: str) -> None:
         self.query_one("#pages", ContentSwitcher).current = page
-        for name in ("overview", "configuration", "operations", "help"):
+        for name in ("overview", "configuration", *ACTION_SECTIONS, "help"):
             button = self.query_one(f"#nav-{name}", Button)
             button.variant = "primary" if name == page else "default"
         if page == "overview":
@@ -664,11 +727,13 @@ class ControlPlaneApp(App[None]):
         elif identifier == "quick-config":
             self.show_page("configuration")
         elif identifier == "quick-validate":
-            self.show_page("operations")
+            self.show_page("setup")
             self.run_operation("validate")
         elif identifier == "quick-doctor":
-            self.show_page("operations")
+            self.show_page("diagnostics")
             self.run_operation("doctor")
+        elif identifier.startswith("copy-activity-"):
+            self.action_copy_activity()
         elif identifier.startswith("operation-"):
             self.run_operation(identifier.removeprefix("operation-"))
 
@@ -676,36 +741,63 @@ class ControlPlaneApp(App[None]):
     def configuration_saved(self) -> None:
         self.query_one(OverviewPage).refresh_status()
 
+    def action_copy_activity(self) -> None:
+        if not self._activity_lines:
+            self.notify("There is no session activity to copy yet", severity="warning")
+            return
+        self.copy_to_clipboard("\n".join(self._activity_lines).rstrip() + "\n")
+        self.notify("Session activity copied", severity="information")
+
+    def write_activity(self, rendered: str, *, plain: str | None = None) -> None:
+        """Write a safe line to every activity view and the plain-text clipboard history."""
+
+        for log in self.query(".activity-log").results(RichLog):
+            log.write(rendered)
+        self._activity_lines.append(rendered if plain is None else plain)
+
     @work(group="operations", exclusive=True)
     async def run_operation(self, identifier: str) -> None:
-        log = self.query_one("#activity-log", RichLog)
         operation = next(item for item in OPERATIONS if item.identifier == identifier)
-        log.write(f"[bold cyan]▶ {operation.title}[/bold cyan]")
+        self.write_activity(
+            f"[bold cyan]> {operation.title}[/bold cyan]", plain=f"> {operation.title}"
+        )
         if operation.destructive:
             preview = (
                 await asyncio.to_thread(operation.plan, self.config_path)
                 if operation.plan is not None
                 else OperationResult(True, f"{operation.title} plan", (operation.description,))
             )
-            log.write("[bold yellow]Plan[/bold yellow]")
+            self.write_activity("[bold yellow]Plan[/bold yellow]", plain="Plan")
             for line in preview.lines:
-                log.write(line)
+                self.write_activity(line)
             if not preview.succeeded:
-                log.write("[red]Plan needs attention; no changes were made.[/red]\n")
+                self.write_activity(
+                    "[red]Plan needs attention; no changes were made.[/red]",
+                    plain="Plan needs attention; no changes were made.",
+                )
+                self.write_activity("")
                 self.notify(f"{preview.title}: needs attention", severity="warning")
                 return
             confirmed = await self.push_screen_wait(
                 ConfirmDialog(f"Confirm: {operation.title}", "\n".join(preview.lines))
             )
             if not confirmed:
-                log.write("[yellow]Cancelled; no changes were made.[/yellow]\n")
+                self.write_activity(
+                    "[yellow]Cancelled; no changes were made.[/yellow]",
+                    plain="Cancelled; no changes were made.",
+                )
+                self.write_activity("")
                 return
         if operation.secret_prompt is not None:
             secret = await self.push_screen_wait(
                 SecretInputDialog(operation.title, operation.secret_prompt)
             )
             if secret is None:
-                log.write("[yellow]Cancelled; the encrypted credentials were unchanged.[/yellow]\n")
+                self.write_activity(
+                    "[yellow]Cancelled; the encrypted credentials were unchanged.[/yellow]",
+                    plain="Cancelled; the encrypted credentials were unchanged.",
+                )
+                self.write_activity("")
                 return
             result = await asyncio.to_thread(
                 execute_with_secret, identifier, secret, self.config_path
@@ -713,7 +805,7 @@ class ControlPlaneApp(App[None]):
         else:
             result = await asyncio.to_thread(execute, identifier, self.config_path)
         for line in result.lines:
-            log.write(line)
+            self.write_activity(line)
         if (
             not result.succeeded
             and result.recovery_operation is not None
@@ -723,15 +815,19 @@ class ControlPlaneApp(App[None]):
                 ConfirmDialog("Recover unavailable Proxmox token?", result.recovery_prompt)
             )
             if confirmed:
-                log.write("[bold yellow]Explicit token recovery confirmed[/bold yellow]")
+                self.write_activity(
+                    "[bold yellow]Explicit token recovery confirmed[/bold yellow]",
+                    plain="Explicit token recovery confirmed",
+                )
                 result = await asyncio.to_thread(
                     execute, result.recovery_operation, self.config_path
                 )
                 for line in result.lines:
-                    log.write(line)
+                    self.write_activity(line)
             else:
-                log.write(
-                    "[yellow]Token recovery cancelled; the existing token was retained.[/yellow]"
+                self.write_activity(
+                    "[yellow]Token recovery cancelled; the existing token was retained.[/yellow]",
+                    plain="Token recovery cancelled; the existing token was retained.",
                 )
         if result.copy_text is not None and result.interactive_command is not None:
             installed = await self.push_screen_wait(
@@ -741,15 +837,16 @@ class ControlPlaneApp(App[None]):
                     result.fallback_text,
                 )
             )
-            log.write(
-                "[green]SSH public key installed.[/green]"
-                if installed
-                else "[yellow]SSH key installation dialog closed.[/yellow]"
+            message = (
+                "SSH public key installed." if installed else "SSH key installation dialog closed."
+            )
+            self.write_activity(
+                f"[{'green' if installed else 'yellow'}]{message}[/]", plain=message
             )
         color = "green" if result.succeeded else "red"
-        log.write(
-            f"[{color}]{'✓ Completed' if result.succeeded else '✗ Action needs attention'}[/{color}]\n"
-        )
+        final_message = "Completed" if result.succeeded else "Action needs attention"
+        self.write_activity(f"[{color}]{final_message}[/{color}]", plain=final_message)
+        self.write_activity("")
         self.notify(
             f"{result.title}: {'completed' if result.succeeded else 'needs attention'}",
             severity="information" if result.succeeded else "warning",

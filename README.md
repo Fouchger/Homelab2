@@ -69,18 +69,16 @@ The preferred operator workflow is the control-panel menu:
 task menu
 ```
 
-Its Operations page initializes encrypted secrets, prepares the dedicated Proxmox SSH public key,
-installs it with an interactive `ssh-copy-id` dialog, and performs the plan/confirm/apply API
-identity bootstrap. Every displayed authorization command has a dedicated copy button. CLI and Task
-commands remain available for unattended operation and recovery. See
+Its purpose-based Setup and Proxmox sections initialize encrypted secrets, prepare the dedicated
+Proxmox SSH public key, install it with an interactive `ssh-copy-id` dialog, and perform the
+plan/confirm/apply API identity bootstrap. Infrastructure contains the safe OpenTofu foundation
+check, while Maintenance contains guarded code updates. Each section shares a session activity
+history with a plain-text copy button for support. CLI and Task commands remain available for
+unattended operation and recovery. See
 [`docs/SECRETS.md`](docs/SECRETS.md) for identity backup, recovery, and rotation, and
 [`docs/OPENTOFU_STATE.md`](docs/OPENTOFU_STATE.md) for provider and state operations.
 
-The Operations page also exposes the safe OpenTofu foundation check. It initializes the locked
-provider, validates typed inputs generated from the active site, and saves a plan without applying
-or changing infrastructure.
-
-Once installed, future code upgrades are available through **Operations → Update control plane**.
+Once installed, future code upgrades are available through **Maintenance → Update control plane**.
 The updater previews GitHub changes, accepts only a clean fast-forward, preserves ignored runtime
 data, synchronizes locked dependencies, and asks the operator to restart the menu.
 

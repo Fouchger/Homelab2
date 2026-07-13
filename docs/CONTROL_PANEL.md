@@ -12,9 +12,20 @@ Navigation keys:
 |---|---|
 | `1` | Overview |
 | `2` | Configuration |
-| `3` | Operations |
+| `3` | Setup |
+| `4` | Proxmox |
+| `5` | Infrastructure |
+| `6` | Maintenance |
+| `7` | Diagnostics |
+| `c` | Copy session activity |
 | `?` | Help and safety |
 | `q` | Quit |
+
+Actions are grouped by purpose instead of appearing in one large Operations page. Setup contains
+configuration and credential preparation, Proxmox contains administrator bootstrap actions,
+Infrastructure contains OpenTofu checks, Maintenance contains control-plane updates, and
+Diagnostics contains readiness and effective-setting reports. Each section presents its actions
+as sub-actions and shares the same session activity history.
 
 ## Input management
 
@@ -44,6 +55,7 @@ Operations are registered in `src/homelabctl/operations.py`. Each operation has:
 
 - a stable identifier;
 - a user-facing title and description;
+- a section that determines its menu location;
 - an execution function returning a structured result;
 - a destructive-action flag.
 
@@ -55,16 +67,20 @@ confirmation dialog.
 providers, validates generated typed inputs, and writes a saved plan to the ignored `artifacts/`
 directory. It never applies a plan. See [`OPENTOFU_STATE.md`](OPENTOFU_STATE.md).
 
-The operations grid adapts to the available width and scrolls when more actions are registered, so
-no implemented menu action is clipped below a fixed card limit. Secret-entry actions use masked
-dialogs and pass values directly to their encrypted operation without writing them to the activity
-log.
+Action sections scroll when needed, so no implemented menu action is clipped. Secret-entry actions
+use masked dialogs and pass values directly to their encrypted operation without writing them to
+the activity log. Every action section has **Copy activity**, which copies the complete session
+history as plain text for support and debugging; terminal colour markup is omitted.
 
 **Update control plane** fetches the configured GitHub branch, displays the commits and changed
 files, and requires confirmation before a fast-forward-only merge. It refuses tracked source edits
 and never resets, stashes, or deletes files. Ignored runtime configuration, encrypted secrets,
 OpenTofu state, logs, caches, and age keys remain in place. Restart the menu after a successful
 update so the running process loads the new code.
+
+Cloudflare and Proxmox credentials are validated independently during guided setup. A generated
+placeholder for a provider that has not been configured yet therefore does not block saving and
+validating the other provider.
 
 ## Secrets
 

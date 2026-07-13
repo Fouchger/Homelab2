@@ -19,6 +19,7 @@ from homelabctl.secrets import (
     resolve_secrets_path,
     set_cloudflare_token,
     set_proxmox_token,
+    validate_provider_secret,
 )
 
 TOKEN = "test-proxmox-token-secret"
@@ -268,6 +269,27 @@ def test_cloudflare_token_update_uses_stdin_and_can_create_provider_section(
     assert api_token not in command
     assert '["cloudflare"]["api_token"]' in command
     assert run.call_args.kwargs["input"] == json.dumps(api_token)
+
+
+def test_cloudflare_validation_ignores_unfinished_proxmox_placeholder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_encrypted_file(tmp_path / "secrets.enc.yaml")
+    decrypted = yaml.safe_dump(
+        {
+            "schema_version": 1,
+            "proxmox": {"api_token": "replace-with-proxmox-api-token-secret"},
+            "cloudflare": {"api_token": CLOUDFLARE_TOKEN},
+        }
+    )
+    monkeypatch.setattr(
+        "homelabctl.secrets.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=["sops", "decrypt"], returncode=0, stdout=decrypted
+        ),
+    )
+
+    validate_provider_secret(path, "cloudflare", sops_executable="sops")
 
 
 def test_age_identity_is_created_once_and_only_public_recipient_is_returned(

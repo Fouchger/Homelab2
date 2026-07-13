@@ -68,9 +68,19 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_argument(menu)
     menu.add_argument(
         "--page",
-        choices=("overview", "configuration", "operations", "help"),
+        choices=(
+            "overview",
+            "configuration",
+            "setup",
+            "proxmox",
+            "infrastructure",
+            "maintenance",
+            "diagnostics",
+            "operations",
+            "help",
+        ),
         default="overview",
-        help="initial control-panel page",
+        help="initial control-panel page (operations remains an alias for setup)",
     )
 
     init = subcommands.add_parser("init", help="create a site configuration from safe defaults")

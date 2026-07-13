@@ -129,6 +129,49 @@ def load_secrets(
 ) -> SecretBundle:
     """Decrypt and validate a SOPS YAML document without writing plaintext to disk."""
 
+    decrypted = _decrypt_secret_mapping(path, sops_executable=sops_executable)
+    proxmox_section = decrypted.get("proxmox")
+    proxmox_token = proxmox_section.get("api_token") if isinstance(proxmox_section, dict) else None
+    if proxmox_token in PLACEHOLDER_VALUES:
+        raise SecretPlaceholderError(
+            "The encrypted Proxmox credential still contains the generated placeholder"
+        )
+    try:
+        bundle = SecretBundle.model_validate(decrypted)
+    except ValidationError as exc:
+        raise SecretError(_format_secret_validation_error(exc)) from exc
+    if config is not None and config.cloudflare.domains and bundle.cloudflare is None:
+        raise SecretError(
+            "Decrypted secrets must include cloudflare.api_token when external domains are configured"
+        )
+    return bundle
+
+
+def validate_provider_secret(
+    path: str | Path | None,
+    provider: Literal["proxmox", "cloudflare"],
+    *,
+    sops_executable: str | None = None,
+) -> None:
+    """Validate one encrypted provider independently of unfinished provider setup."""
+
+    decrypted = _decrypt_secret_mapping(path, sops_executable=sops_executable)
+    section = decrypted.get(provider)
+    if not isinstance(section, dict):
+        raise SecretError(f"Decrypted secrets must include {provider}.api_token")
+    try:
+        ProviderSecret.model_validate(section)
+    except ValidationError as exc:
+        raise SecretError(_format_secret_validation_error(exc, prefix=provider)) from exc
+
+
+def _decrypt_secret_mapping(
+    path: str | Path | None,
+    *,
+    sops_executable: str | None = None,
+) -> dict[str, Any]:
+    """Decrypt a SOPS document into memory without validating unrelated providers."""
+
     secret_path = resolve_secrets_path(path)
     _read_encrypted_mapping(secret_path)
     sops = _find_sops(sops_executable)
@@ -155,27 +198,14 @@ def load_secrets(
         raise SecretError("SOPS returned invalid decrypted YAML") from exc
     if not isinstance(decrypted, dict):
         raise SecretError("Decrypted secret document must be a YAML mapping")
-    proxmox_section = decrypted.get("proxmox")
-    proxmox_token = proxmox_section.get("api_token") if isinstance(proxmox_section, dict) else None
-    if proxmox_token in PLACEHOLDER_VALUES:
-        raise SecretPlaceholderError(
-            "The encrypted Proxmox credential still contains the generated placeholder"
-        )
-    try:
-        bundle = SecretBundle.model_validate(decrypted)
-    except ValidationError as exc:
-        raise SecretError(_format_secret_validation_error(exc)) from exc
-    if config is not None and config.cloudflare.domains and bundle.cloudflare is None:
-        raise SecretError(
-            "Decrypted secrets must include cloudflare.api_token when external domains are configured"
-        )
-    return bundle
+    return decrypted
 
 
-def _format_secret_validation_error(error: ValidationError) -> str:
+def _format_secret_validation_error(error: ValidationError, *, prefix: str | None = None) -> str:
     lines = ["Decrypted secret validation failed:"]
     for issue in error.errors(include_url=False, include_input=False):
-        location = ".".join(str(part) for part in issue["loc"])
+        location_parts = ([prefix] if prefix else []) + [str(part) for part in issue["loc"]]
+        location = ".".join(location_parts)
         message = issue["msg"].removeprefix("Value error, ")
         lines.append(f"- {location}: {message}")
     return "\n".join(lines)

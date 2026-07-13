@@ -28,10 +28,10 @@ from homelabctl.proxmox_bootstrap import (
 from homelabctl.secrets import (
     SecretError,
     ensure_secret_store,
-    load_secrets,
     resolve_age_identity_path,
     resolve_secrets_path,
     set_cloudflare_token,
+    validate_provider_secret,
 )
 from homelabctl.tofu import TofuError, check_foundation
 from homelabctl.updater import UpdateError, apply_update, prepare_update
@@ -55,6 +55,7 @@ class Operation:
     title: str
     description: str
     run: Callable[[Path], OperationResult]
+    section: str = "setup"
     destructive: bool = False
     plan: Callable[[Path], OperationResult] | None = None
     visible: bool = True
@@ -199,7 +200,7 @@ def cloudflare_token_plan(path: Path) -> OperationResult:
             f"Encrypted credentials: {resolve_secrets_path()}",
             "The token field will be masked and passed directly to SOPS",
             "An existing Cloudflare token will be replaced",
-            "The encrypted credential store will be validated after saving",
+            "The Cloudflare credential will be validated independently after saving",
         ),
     )
 
@@ -208,7 +209,7 @@ def set_cloudflare_credential(path: Path, token: str) -> OperationResult:
     try:
         config = load_config(path)
         secret_path = set_cloudflare_token(resolve_secrets_path(), token)
-        load_secrets(secret_path, config=config)
+        validate_provider_secret(secret_path, "cloudflare")
     except (ConfigurationError, SecretError) as exc:
         return OperationResult(False, "Cloudflare API token", tuple(str(exc).splitlines()))
     return OperationResult(
@@ -216,7 +217,8 @@ def set_cloudflare_credential(path: Path, token: str) -> OperationResult:
         "Cloudflare API token",
         (
             f"Encrypted Cloudflare token stored at {secret_path}",
-            f"Validated for {len(config.cloudflare.domains)} configured domain(s)",
+            f"Cloudflare credential validated for {len(config.cloudflare.domains)} configured domain(s)",
+            "Proxmox credentials can be completed separately from the Proxmox menu",
         ),
     )
 
@@ -372,18 +374,21 @@ OPERATIONS: tuple[Operation, ...] = (
         "Check system readiness",
         "Inspect the local toolchain, configuration, and encrypted provisioning credentials.",
         system_readiness,
+        section="diagnostics",
     ),
     Operation(
         "summary",
         "Preview effective settings",
         "Display the exact non-secret values automation will consume.",
         configuration_summary,
+        section="diagnostics",
     ),
     Operation(
         "update",
         "Update control plane",
         "Safely fetch and install the latest fast-forward version from GitHub.",
         update_control_plane,
+        section="maintenance",
         destructive=True,
         plan=control_plane_update_plan,
     ),
@@ -409,6 +414,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Prepare Proxmox SSH access",
         "Create a dedicated key and show the public key to authorize on Proxmox.",
         prepare_proxmox_ssh,
+        section="proxmox",
         destructive=True,
         plan=proxmox_ssh_plan,
     ),
@@ -417,6 +423,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Bootstrap Proxmox API identity",
         "Plan, confirm, and remotely create the Proxmox user, role, ACL, and token.",
         bootstrap_proxmox_identity,
+        section="proxmox",
         destructive=True,
         plan=proxmox_identity_plan,
     ),
@@ -425,6 +432,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Recover Proxmox API token",
         "Explicitly replace a remote token whose one-time value is unavailable.",
         recover_proxmox_token,
+        section="proxmox",
         destructive=True,
         visible=False,
     ),
@@ -433,6 +441,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Check OpenTofu foundation",
         "Initialize locked providers, validate typed inputs, and create a non-destructive plan.",
         check_tofu_foundation,
+        section="infrastructure",
     ),
 )
 
