@@ -18,8 +18,10 @@ foundation is complete in `v0.2.0`. The completed foundation provides:
 - a confirmation-dialog foundation for future destructive operations;
 - both interactive and unattended command-line operation.
 
-Phase 3 will add Proxmox resources and multi-domain Cloudflare DNS. Ansible deployment follows in
-Phase 4. The menu only shows operations that are actually implemented. See
+Phase 3 implementation is in progress: the typed model and OpenTofu project now describe
+unprivileged Debian LXC guests and explicit multi-domain Cloudflare DNS records. Ansible deployment
+and guarded apply operations follow in Phase 4. The menu only shows operations that are actually
+implemented. See
 [`DEVELOPMENT.md`](DEVELOPMENT.md) for the sequenced roadmap and outstanding GitHub issues, and
 [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
@@ -77,7 +79,10 @@ history with a portable plain-text copy view for support. It supports native ter
 an optional direct clipboard request, and an exported `logs/activity-report.txt` fallback. CLI and
 Task commands remain available for unattended operation and recovery. See
 [`docs/SECRETS.md`](docs/SECRETS.md) for identity backup, recovery, and rotation, and
-[`docs/OPENTOFU_STATE.md`](docs/OPENTOFU_STATE.md) for provider and state operations.
+[`docs/OPENTOFU_STATE.md`](docs/OPENTOFU_STATE.md) for provider and state operations. Phase 3
+resource contracts are documented in
+[`docs/PROXMOX_PROVISIONING.md`](docs/PROXMOX_PROVISIONING.md) and
+[`docs/CLOUDFLARE_DNS.md`](docs/CLOUDFLARE_DNS.md).
 
 Once installed, future code upgrades are available through **Maintenance → Update control plane**.
 The updater previews GitHub changes, accepts only a clean fast-forward, preserves ignored runtime
@@ -89,6 +94,9 @@ data, synchronizes locked dependencies, and asks the operator to restart the men
 - User-specific site files are created under `config/sites/` and ignored.
 - `site.domain` is the internal DNS suffix; `cloudflare.domains` accepts zero, one, or many
   external domains.
+- `proxmox.containers` and `cloudflare.records` default to empty, so existing Phase 2
+  configurations remain valid.
+- Guests and public records have stable keys; reordering YAML does not replace resources.
 - Passwords and token secrets are never part of the general site model.
 - Proxmox and Cloudflare token secrets are loaded from SOPS/age-encrypted YAML only at runtime.
 - The age identity is stored outside the repository and must have an offline encrypted backup.

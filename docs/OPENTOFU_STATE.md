@@ -1,12 +1,14 @@
 # OpenTofu foundation and state
 
 The control panel maps the validated site YAML into typed OpenTofu inputs. Secret values are never
-written to a variable file: the Proxmox credential is decrypted from SOPS in memory and supplied
-only through `TF_VAR_proxmox_api_token` to the child process.
+written to a variable file: provider credentials are decrypted from SOPS in memory and supplied
+only to the child process. Proxmox receives `TF_VAR_proxmox_api_token` and its provider environment;
+Cloudflare receives `CLOUDFLARE_API_TOKEN` only when present. Both values are redacted from
+diagnostics.
 
 ## Menu workflow
 
-Open **Operations** and run **Check OpenTofu foundation**. It performs these read-only steps:
+Open **Infrastructure** and run **Check OpenTofu foundation**. It performs these read-only steps:
 
 1. checks OpenTofu formatting;
 2. initializes the exact provider version from `.terraform.lock.hcl`;
@@ -19,10 +21,16 @@ provide the same operation for unattended troubleshooting.
 
 ## Provider reproducibility
 
-The project constrains OpenTofu to the supported major version and pins `bpg/proxmox` exactly.
-The committed dependency lock contains registry checksums for supported platforms. Provider
-upgrades are deliberate: update the constraint, run `tofu providers lock` for the required
-platforms, review release notes, and commit both changes together.
+The project constrains OpenTofu to the supported major version and pins `bpg/proxmox` and
+`cloudflare/cloudflare` exactly. The committed dependency lock contains registry checksums for
+supported platforms. Provider upgrades are deliberate: update the constraint, run
+`tofu providers lock` for the required platforms, review release notes, and commit both changes
+together.
+
+The saved plan can contain public record content, resource identifiers, and infrastructure
+metadata even though provider tokens are excluded. Treat it and state as sensitive operational
+artifacts. Phase 3 remains plan-only in the control panel; a guarded apply workflow is tracked by
+issue #9.
 
 ## State strategy
 

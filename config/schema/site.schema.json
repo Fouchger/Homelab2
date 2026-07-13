@@ -13,6 +13,14 @@
           "title": "Ssh Private Key",
           "type": "string"
         },
+        "ssh_public_keys": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Ssh Public Keys",
+          "type": "array"
+        },
         "become": {
           "default": true,
           "title": "Become",
@@ -20,6 +28,52 @@
         }
       },
       "title": "AutomationSettings",
+      "type": "object"
+    },
+    "CloudflareDnsRecord": {
+      "additionalProperties": false,
+      "description": "One public DNS record exclusively owned by OpenTofu.",
+      "properties": {
+        "zone": {
+          "title": "Zone",
+          "type": "string"
+        },
+        "name": {
+          "description": "Relative record name, or @ for the zone apex",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "A",
+            "AAAA",
+            "CNAME"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "ttl": {
+          "default": 1,
+          "title": "Ttl",
+          "type": "integer"
+        },
+        "proxied": {
+          "default": false,
+          "title": "Proxied",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "zone",
+        "name",
+        "type",
+        "content"
+      ],
+      "title": "CloudflareDnsRecord",
       "type": "object"
     },
     "CloudflareSettings": {
@@ -32,6 +86,14 @@
           },
           "maxItems": 20,
           "title": "Domains",
+          "type": "array"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/CloudflareDnsRecord"
+          },
+          "maxItems": 500,
+          "title": "Records",
           "type": "array"
         }
       },
@@ -121,6 +183,102 @@
       "title": "NetworkSettings",
       "type": "object"
     },
+    "ProxmoxLxcSettings": {
+      "additionalProperties": false,
+      "description": "One OpenTofu-owned, unprivileged Debian LXC guest.",
+      "properties": {
+        "key": {
+          "description": "Stable resource key that survives list reordering",
+          "title": "Key",
+          "type": "string"
+        },
+        "vm_id": {
+          "maximum": 999999999,
+          "minimum": 100,
+          "title": "Vm Id",
+          "type": "integer"
+        },
+        "hostname": {
+          "title": "Hostname",
+          "type": "string"
+        },
+        "template_file_id": {
+          "description": "Proxmox template ID such as local:vztmpl/x.tar.zst",
+          "title": "Template File Id",
+          "type": "string"
+        },
+        "address": {
+          "format": "ipv4interface",
+          "title": "Address",
+          "type": "string"
+        },
+        "cores": {
+          "default": 1,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Cores",
+          "type": "integer"
+        },
+        "memory_mb": {
+          "default": 1024,
+          "maximum": 1048576,
+          "minimum": 256,
+          "title": "Memory Mb",
+          "type": "integer"
+        },
+        "swap_mb": {
+          "default": 512,
+          "maximum": 1048576,
+          "minimum": 0,
+          "title": "Swap Mb",
+          "type": "integer"
+        },
+        "disk_gb": {
+          "default": 8,
+          "maximum": 16384,
+          "minimum": 1,
+          "title": "Disk Gb",
+          "type": "integer"
+        },
+        "started": {
+          "default": true,
+          "title": "Started",
+          "type": "boolean"
+        },
+        "start_on_boot": {
+          "default": true,
+          "title": "Start On Boot",
+          "type": "boolean"
+        },
+        "nesting": {
+          "default": false,
+          "title": "Nesting",
+          "type": "boolean"
+        },
+        "protection": {
+          "default": false,
+          "title": "Protection",
+          "type": "boolean"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "vm_id",
+        "hostname",
+        "template_file_id",
+        "address"
+      ],
+      "title": "ProxmoxLxcSettings",
+      "type": "object"
+    },
     "ProxmoxSettings": {
       "additionalProperties": false,
       "properties": {
@@ -155,6 +313,14 @@
           "default": true,
           "title": "Verify Tls",
           "type": "boolean"
+        },
+        "containers": {
+          "items": {
+            "$ref": "#/$defs/ProxmoxLxcSettings"
+          },
+          "maxItems": 100,
+          "title": "Containers",
+          "type": "array"
         }
       },
       "title": "ProxmoxSettings",

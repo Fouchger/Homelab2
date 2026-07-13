@@ -142,7 +142,31 @@ def test_validation_failure_omits_invalid_secret_inputs(
     assert "unexpected" in str(captured.value)
 
 
-def test_cloudflare_token_is_required_when_domains_are_configured(
+def test_cloudflare_token_is_required_when_records_are_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_encrypted_file(tmp_path / "secrets.enc.yaml", cloudflare=False)
+    monkeypatch.setattr(
+        "homelabctl.secrets.subprocess.run",
+        lambda *args, **kwargs: completed_decryption(cloudflare=False),
+    )
+    data = default_config().model_dump(mode="json")
+    data["cloudflare"]["domains"] = ["example.com"]
+    data["cloudflare"]["records"] = [
+        {
+            "zone": "example.com",
+            "name": "app",
+            "type": "A",
+            "content": "1.1.1.1",
+        }
+    ]
+    config = HomelabConfig.model_validate(data)
+
+    with pytest.raises(SecretError, match="must include cloudflare.api_token"):
+        load_secrets(path, config=config, sops_executable="sops")
+
+
+def test_cloudflare_token_is_not_required_for_an_empty_record_set(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     path = write_encrypted_file(tmp_path / "secrets.enc.yaml", cloudflare=False)
@@ -154,8 +178,9 @@ def test_cloudflare_token_is_required_when_domains_are_configured(
     data["cloudflare"]["domains"] = ["example.com"]
     config = HomelabConfig.model_validate(data)
 
-    with pytest.raises(SecretError, match="must include cloudflare.api_token"):
-        load_secrets(path, config=config, sops_executable="sops")
+    bundle = load_secrets(path, config=config, sops_executable="sops")
+
+    assert bundle.cloudflare is None
 
 
 def test_initialize_encrypts_template_before_writing(

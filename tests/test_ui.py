@@ -5,7 +5,8 @@ from unittest.mock import Mock
 
 from textual.widgets import Button, Input, TextArea
 
-from homelabctl.configuration import load_config
+from homelabctl.configuration import load_config, save_config
+from homelabctl.models import HomelabConfig, default_config
 from homelabctl.operations import Operation, OperationResult
 from homelabctl.ui import (
     ActivityCopyDialog,
@@ -46,6 +47,49 @@ async def test_navigation_and_first_run_save(tmp_path: Path) -> None:
     config = load_config(config_path)
     assert config.site.name == "test-lab"
     assert config.cloudflare.domains == ["example.com", "lab.example.net"]
+
+
+async def test_form_save_preserves_yaml_managed_resources(tmp_path: Path) -> None:
+    config_path = tmp_path / "site.yaml"
+    data = default_config().model_dump(mode="json")
+    data["automation"]["ssh_public_keys"] = ["ssh-ed25519 AAAAC3NzaCTest automation"]
+    data["proxmox"]["containers"] = [
+        {
+            "key": "dns",
+            "vm_id": 110,
+            "hostname": "dns",
+            "template_file_id": "local:vztmpl/debian-13-standard.tar.zst",
+            "address": "192.168.10.10/24",
+        }
+    ]
+    data["cloudflare"] = {
+        "domains": ["example.com"],
+        "records": [
+            {
+                "zone": "example.com",
+                "name": "app",
+                "type": "A",
+                "content": "1.1.1.1",
+            }
+        ],
+    }
+    original = HomelabConfig.model_validate(data)
+    save_config(original, config_path)
+    app = ControlPlaneApp(config_path)
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("2")
+        await pilot.pause()
+        app.query_one("#field-site-name", Input).value = "updated-lab"
+        app.query_one(ConfigurationPage).scroll_end(animate=False)
+        app.query_one("#config-save", Button).press()
+        await pilot.pause()
+
+    saved = load_config(config_path)
+    assert saved.site.name == "updated-lab"
+    assert saved.proxmox.containers == original.proxmox.containers
+    assert saved.cloudflare.records == original.cloudflare.records
+    assert saved.automation.ssh_public_keys == original.automation.ssh_public_keys
 
 
 async def test_actions_are_grouped_in_meaningful_navigation_sections(tmp_path: Path) -> None:

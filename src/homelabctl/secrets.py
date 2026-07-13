@@ -140,9 +140,9 @@ def load_secrets(
         bundle = SecretBundle.model_validate(decrypted)
     except ValidationError as exc:
         raise SecretError(_format_secret_validation_error(exc)) from exc
-    if config is not None and config.cloudflare.domains and bundle.cloudflare is None:
+    if config is not None and config.cloudflare.records and bundle.cloudflare is None:
         raise SecretError(
-            "Decrypted secrets must include cloudflare.api_token when external domains are configured"
+            "Decrypted secrets must include cloudflare.api_token when DNS records are configured"
         )
     return bundle
 

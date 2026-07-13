@@ -54,7 +54,40 @@ def tofu_variables(config: HomelabConfig) -> dict[str, object]:
             "bridge": config.network.bridge,
             "vlan_id": config.network.vlan_id,
         },
+        "automation": {
+            "ssh_public_keys": config.automation.ssh_public_keys,
+        },
         "cloudflare_domains": config.cloudflare.domains,
+        "proxmox_lxcs": [
+            {
+                "key": container.key,
+                "vm_id": container.vm_id,
+                "hostname": container.hostname,
+                "template_file_id": container.template_file_id,
+                "address": str(container.address),
+                "cores": container.cores,
+                "memory_mb": container.memory_mb,
+                "swap_mb": container.swap_mb,
+                "disk_gb": container.disk_gb,
+                "started": container.started,
+                "start_on_boot": container.start_on_boot,
+                "nesting": container.nesting,
+                "protection": container.protection,
+                "tags": container.tags,
+            }
+            for container in sorted(config.proxmox.containers, key=lambda item: item.key)
+        ],
+        "cloudflare_records": [
+            {
+                "zone": record.zone,
+                "name": record.name,
+                "type": record.type,
+                "content": record.content,
+                "ttl": record.ttl,
+                "proxied": record.proxied,
+            }
+            for record in sorted(config.cloudflare.records, key=lambda item: item.resource_key)
+        ],
     }
 
 
@@ -90,8 +123,14 @@ def _run(
     diagnostic.write("tofu.result", f"exit_code={completed.returncode}")
     for stream, content in (("stdout", completed.stdout), ("stderr", completed.stderr)):
         for line in content.splitlines():
-            runtime_token = environment.get("TF_VAR_proxmox_api_token", "")
-            safe_line = line.replace(runtime_token, "[REDACTED]") if runtime_token else line
+            safe_line = line
+            runtime_tokens = {
+                environment.get("TF_VAR_proxmox_api_token", ""),
+                environment.get("PROXMOX_VE_API_TOKEN", ""),
+                environment.get("CLOUDFLARE_API_TOKEN", ""),
+            }
+            for runtime_token in runtime_tokens - {""}:
+                safe_line = safe_line.replace(runtime_token, "[REDACTED]")
             diagnostic.write(f"tofu.{stream}", safe_line)
     if completed.returncode not in accepted_codes:
         raise TofuError(
@@ -112,7 +151,7 @@ def check_foundation(
     if not tofu:
         raise TofuError("OpenTofu is not installed or is not on PATH")
     config = load_config(config_path)
-    bundle = load_secrets(resolve_secrets_path(secrets_path))
+    bundle = load_secrets(resolve_secrets_path(secrets_path), config=config)
     root = find_project_root(Path(config_path).resolve().parent)
     working = infrastructure_directory(root)
     variables_path = write_tofu_variables(
@@ -125,6 +164,7 @@ def check_foundation(
     environment["TF_IN_AUTOMATION"] = "1"
     environment["TF_INPUT"] = "0"
     environment["TF_DATA_DIR"] = str(root / ".cache" / "tofu" / "data")
+    environment.update(bundle.provider_environment())
     environment["TF_VAR_proxmox_api_token"] = bundle.proxmox.api_token.get_secret_value()
 
     diagnostic.write("tofu.check.start", f"working_directory={working}")

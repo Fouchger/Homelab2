@@ -241,6 +241,7 @@ class OverviewPage(VerticalScroll):
     def __init__(self, config_path: Path, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self.config_path = config_path
+        self.loaded_config: HomelabConfig | None = None
 
     def compose(self) -> ComposeResult:
         yield Static("Control plane overview", classes="page-title")
@@ -319,7 +320,7 @@ class ConfigurationPage(VerticalScroll):
     def compose(self) -> ComposeResult:
         yield Static("Site configuration", classes="page-title")
         yield Static(
-            "Values are validated before an atomic save. Credentials are managed separately.",
+            "Values are validated before an atomic save. YAML-managed guests and DNS records are preserved.",
             classes="page-subtitle",
         )
         with Vertical(classes="form-section"):
@@ -415,6 +416,7 @@ class ConfigurationPage(VerticalScroll):
         except ConfigurationError:
             config = default_config()
             message = "Using safe defaults. Review every value before saving."
+        self.loaded_config = config
 
         values = {
             "#field-site-name": config.site.name,
@@ -447,29 +449,36 @@ class ConfigurationPage(VerticalScroll):
     def collect(self) -> HomelabConfig:
         value = lambda selector: self.query_one(selector, Input).value.strip()  # noqa: E731
         vlan = value("#field-vlan")
-        data = {
-            "schema_version": 1,
-            "site": {
+        source = self.loaded_config or default_config()
+        data = source.model_dump(mode="json")
+        data["site"].update(
+            {
                 "name": value("#field-site-name"),
                 "domain": value("#field-domain"),
                 "timezone": value("#field-timezone"),
                 "environment": self.query_one("#field-environment", Select).value,
-            },
-            "cloudflare": {
+            }
+        )
+        data["cloudflare"].update(
+            {
                 "domains": [
                     item.strip()
                     for item in value("#field-cloudflare-domains").split(",")
                     if item.strip()
                 ],
-            },
-            "proxmox": {
+            }
+        )
+        data["proxmox"].update(
+            {
                 "api_url": value("#field-api-url"),
                 "node": value("#field-node"),
                 "storage": value("#field-storage"),
                 "token_id": value("#field-token-id"),
                 "verify_tls": self.query_one("#field-verify-tls", Switch).value,
-            },
-            "network": {
+            }
+        )
+        data["network"].update(
+            {
                 "management_cidr": value("#field-cidr"),
                 "gateway": value("#field-gateway"),
                 "dns_servers": [
@@ -477,19 +486,23 @@ class ConfigurationPage(VerticalScroll):
                 ],
                 "bridge": value("#field-bridge"),
                 "vlan_id": int(vlan) if vlan else None,
-            },
-            "automation": {
+            }
+        )
+        data["automation"].update(
+            {
                 "ssh_user": value("#field-ssh-user"),
                 "ssh_private_key": value("#field-ssh-key"),
                 "become": self.query_one("#field-become", Switch).value,
-            },
-            "deployment": {
+            }
+        )
+        data["deployment"].update(
+            {
                 "channel": self.query_one("#field-channel", Select).value,
                 "check_interval_minutes": value("#field-interval"),
                 "automatic_updates": self.query_one("#field-auto-updates", Switch).value,
                 "require_confirmation": self.query_one("#field-confirmation", Switch).value,
-            },
-        }
+            }
+        )
         return HomelabConfig.model_validate(data)
 
     def set_feedback(self, message: str, *, error: bool) -> None:
@@ -519,6 +532,7 @@ class ConfigurationPage(VerticalScroll):
             self.set_feedback(message, error=True)
             self.app.notify("Configuration was not saved", severity="error")
             return
+        self.loaded_config = config
         self.set_feedback(f"Saved and validated {saved_path}", error=False)
         self.app.notify("Configuration saved", severity="information")
         self.post_message(self.Saved(config))

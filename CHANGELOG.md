@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Strict site models for stable-key, unprivileged Debian LXC guests with static management
+  addressing, sizing, template, lifecycle, tags, and public-key bootstrap settings.
+- Strict multi-zone Cloudflare A, AAAA, and CNAME records with exact ownership identities,
+  public-target validation, safe TTL/proxy defaults, and internal-domain leakage prevention.
+- Deterministic OpenTofu Proxmox container and Cloudflare DNS resources with structured,
+  secret-free outputs for later Ansible inventory.
+- Exact Cloudflare provider pinning and a regenerated multi-platform provider lockfile.
+- Phase 3 provisioning and DNS ownership operator guides.
+
+### Changed
+
+- The OpenTofu runner now passes only in-memory provider credentials, requires the Cloudflare token
+  when records are declared, and redacts both provider tokens from diagnostics.
+- The guided configuration form preserves Phase 3 resources that are currently edited in YAML.
+
+### Verified
+
+- OpenTofu formatting, provider initialization, schema validation, empty example planning, and an
+  offline one-container creation plan.
+- Generated JSON Schema, example configuration validation, focused model/secret/OpenTofu/UI tests,
+  and Ruff checks.
+
 ## [0.2.0] - 2026-07-13
 
 ### Added

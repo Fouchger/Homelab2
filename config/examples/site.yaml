@@ -8,12 +8,14 @@ cloudflare:
   domains:
     - example.com
     - lab.example.net
+  records: []
 proxmox:
   api_url: https://pve.home.arpa:8006
   node: pve
   storage: local-lvm
   token_id: homelab@pve!control-plane
   verify_tls: true
+  containers: []
 network:
   management_cidr: 192.168.10.0/24
   gateway: 192.168.10.1
@@ -24,6 +26,7 @@ network:
 automation:
   ssh_user: automation
   ssh_private_key: ~/.ssh/homelab_ed25519
+  ssh_public_keys: []
   become: true
 deployment:
   channel: stable
