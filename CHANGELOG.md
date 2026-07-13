@@ -32,7 +32,8 @@ All notable changes to this project are documented in this file.
   preservation; installer updates now ignore untracked runtime artifacts and identify tracked
   source changes precisely.
 - Purpose-based Setup, Proxmox, Infrastructure, Maintenance, and Diagnostics menu sections with
-  shared session activity and plain-text clipboard copying for support.
+  shared session activity, a native terminal selection view, optional direct clipboard transfer,
+  and an exported plain-text report for support.
 - Independent provider-credential validation so an unfinished Proxmox placeholder does not block
   guided Cloudflare token setup.
 

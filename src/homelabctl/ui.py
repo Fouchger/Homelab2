@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 from pathlib import Path
 from typing import ClassVar
@@ -27,7 +28,7 @@ from textual.widgets import (
     TextArea,
 )
 
-from homelabctl.configuration import ConfigurationError, load_config, save_config
+from homelabctl.configuration import ConfigurationError, find_project_root, load_config, save_config
 from homelabctl.doctor import run_checks
 from homelabctl.models import HomelabConfig, default_config
 from homelabctl.operations import OPERATIONS, OperationResult, execute, execute_with_secret
@@ -170,6 +171,70 @@ class CopyCommandDialog(ModalScreen[bool]):
     @on(Button.Pressed, "#command-close")
     def close_dialog(self) -> None:
         self.dismiss(False)
+
+
+class ActivityCopyDialog(ModalScreen[None]):
+    """Offer portable activity-copy methods for local and remote terminals."""
+
+    def __init__(self, transcript: str, report_path: Path) -> None:
+        super().__init__()
+        self.transcript = transcript
+        self.report_path = report_path
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="activity-copy-dialog"):
+            yield Static("Copy session activity", classes="dialog-title")
+            yield Static(
+                "Remote terminals may block direct clipboard access. Recommended: open the "
+                "plain terminal view, select and copy with MobaXterm or the browser, then press "
+                "Enter to return to this menu.",
+                classes="dialog-detail",
+            )
+            yield Label(
+                "Plain-text activity (secret values are never included)", classes="field-label"
+            )
+            yield TextArea(
+                self.transcript,
+                read_only=True,
+                show_cursor=True,
+                soft_wrap=True,
+                id="activity-copy-text",
+            )
+            yield Static(f"Saved fallback: {self.report_path}", classes="dialog-detail")
+            with Horizontal(classes="dialog-actions"):
+                yield Button(
+                    "Open terminal copy view", id="activity-copy-terminal", variant="success"
+                )
+                yield Button("Try direct clipboard", id="activity-copy-direct")
+                yield Button("Close", id="activity-copy-close")
+
+    def on_mount(self) -> None:
+        text_area = self.query_one("#activity-copy-text", TextArea)
+        text_area.focus()
+        text_area.select_all()
+
+    @on(Button.Pressed, "#activity-copy-terminal")
+    def open_terminal_copy_view(self) -> None:
+        with self.app.suspend():
+            print("\n--- Homelab Control Plane activity ---\n")
+            print(self.transcript, end="")
+            print("\n--- End activity ---")
+            input("Select and copy the text above, then press Enter to return to the menu...")
+        text_area = self.query_one("#activity-copy-text", TextArea)
+        text_area.focus()
+        text_area.select_all()
+
+    @on(Button.Pressed, "#activity-copy-direct")
+    def try_direct_clipboard(self) -> None:
+        self.app.copy_to_clipboard(self.transcript)
+        self.app.notify(
+            "Clipboard request sent; use the terminal view if your client blocks it",
+            severity="information",
+        )
+
+    @on(Button.Pressed, "#activity-copy-close")
+    def close_dialog(self) -> None:
+        self.dismiss(None)
 
 
 class OverviewPage(VerticalScroll):
@@ -505,7 +570,7 @@ class ActionPage(VerticalScroll):
                     yield Button("Run", id=f"operation-{operation.identifier}")
         with Horizontal(classes="activity-heading"):
             yield Static("Session activity", classes="section-title")
-            yield Button("Copy activity", id=f"copy-activity-{self.section}")
+            yield Button("View / copy activity", id=f"copy-activity-{self.section}")
         yield RichLog(
             id=f"activity-log-{self.section}",
             classes="activity-log",
@@ -544,8 +609,8 @@ class HelpPage(VerticalScroll):
         yield Static("Activity and support", classes="section-title")
         yield Static(
             "Action results are retained across Setup, Proxmox, Infrastructure, Maintenance, "
-            "and Diagnostics for this session. Select Copy activity, or press C, to copy a "
-            "plain-text diagnostic transcript without colour markup or secret values.",
+            "and Diagnostics for this session. Select View / copy activity, or press C, to open "
+            "a portable plain-text copy view without colour markup or secret values.",
             classes="body-copy",
         )
 
@@ -642,6 +707,7 @@ class ControlPlaneApp(App[None]):
     ConfirmDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     SecretInputDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     CopyCommandDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
+    ActivityCopyDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     #confirm-dialog { width: 64; height: auto; background: $hl-surface; border: thick $hl-danger; padding: 2; }
     #secret-input-dialog { width: 72; height: auto; background: $hl-surface; border: thick $hl-accent; padding: 2; }
     .dialog-title { height: 2; text-style: bold; }
@@ -659,6 +725,15 @@ class ControlPlaneApp(App[None]):
     #copy-command-text { height: 5; border: solid $hl-border; }
     #fallback-command-text { height: 7; border: solid $hl-border; }
     #fallback-copy { width: 1fr; margin-top: 1; }
+    #activity-copy-dialog {
+        width: 100;
+        height: 34;
+        max-height: 90%;
+        background: $hl-surface;
+        border: thick $hl-accent;
+        padding: 2;
+    }
+    #activity-copy-text { height: 15; border: solid $hl-border; }
 
     Screen.-compact #sidebar { display: none; }
     Screen.-compact OverviewPage,
@@ -745,8 +820,16 @@ class ControlPlaneApp(App[None]):
         if not self._activity_lines:
             self.notify("There is no session activity to copy yet", severity="warning")
             return
-        self.copy_to_clipboard("\n".join(self._activity_lines).rstrip() + "\n")
-        self.notify("Session activity copied", severity="information")
+        transcript = "\n".join(self._activity_lines).rstrip() + "\n"
+        report_path = find_project_root(self.config_path.parent) / "logs" / "activity-report.txt"
+        try:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(transcript, encoding="utf-8", newline="\n")
+            if os.name != "nt":
+                report_path.chmod(0o600)
+        except OSError:
+            self.notify("Activity report could not be saved", severity="warning")
+        self.push_screen(ActivityCopyDialog(transcript, report_path))
 
     def write_activity(self, rendered: str, *, plain: str | None = None) -> None:
         """Write a safe line to every activity view and the plain-text clipboard history."""

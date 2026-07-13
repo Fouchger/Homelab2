@@ -73,8 +73,9 @@ Its purpose-based Setup and Proxmox sections initialize encrypted secrets, prepa
 Proxmox SSH public key, install it with an interactive `ssh-copy-id` dialog, and perform the
 plan/confirm/apply API identity bootstrap. Infrastructure contains the safe OpenTofu foundation
 check, while Maintenance contains guarded code updates. Each section shares a session activity
-history with a plain-text copy button for support. CLI and Task commands remain available for
-unattended operation and recovery. See
+history with a portable plain-text copy view for support. It supports native terminal selection,
+an optional direct clipboard request, and an exported `logs/activity-report.txt` fallback. CLI and
+Task commands remain available for unattended operation and recovery. See
 [`docs/SECRETS.md`](docs/SECRETS.md) for identity backup, recovery, and rotation, and
 [`docs/OPENTOFU_STATE.md`](docs/OPENTOFU_STATE.md) for provider and state operations.
 

@@ -17,7 +17,7 @@ Navigation keys:
 | `5` | Infrastructure |
 | `6` | Maintenance |
 | `7` | Diagnostics |
-| `c` | Copy session activity |
+| `c` | Open the activity copy view |
 | `?` | Help and safety |
 | `q` | Quit |
 
@@ -69,8 +69,17 @@ directory. It never applies a plan. See [`OPENTOFU_STATE.md`](OPENTOFU_STATE.md)
 
 Action sections scroll when needed, so no implemented menu action is clipped. Secret-entry actions
 use masked dialogs and pass values directly to their encrypted operation without writing them to
-the activity log. Every action section has **Copy activity**, which copies the complete session
-history as plain text for support and debugging; terminal colour markup is omitted.
+the activity log. Every action section has **View / copy activity**, which opens the complete
+session history as plain text for support and debugging; terminal colour markup is omitted.
+
+Remote sessions cannot always write to the operator's local clipboard because MobaXterm and browser
+terminals may block OSC 52 clipboard requests. The activity dialog therefore offers three paths:
+
+1. **Open terminal copy view** temporarily shows the transcript in a normal terminal so the client
+   can select and copy it using its own controls.
+2. **Try direct clipboard** requests OSC 52 clipboard transfer when the terminal permits it.
+3. A sanitized fallback is always written to `logs/activity-report.txt` for access through SFTP or
+   a text editor.
 
 **Update control plane** fetches the configured GitHub branch, displays the commits and changed
 files, and requires confirmation before a fast-forward-only merge. It refuses tracked source edits

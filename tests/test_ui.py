@@ -3,11 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import Mock
 
-from textual.widgets import Button, Input
+from textual.widgets import Button, Input, TextArea
 
 from homelabctl.configuration import load_config
 from homelabctl.operations import Operation, OperationResult
 from homelabctl.ui import (
+    ActivityCopyDialog,
     ConfigurationPage,
     ConfirmDialog,
     ControlPlaneApp,
@@ -199,5 +200,15 @@ async def test_activity_can_be_copied_as_plain_text(tmp_path: Path, monkeypatch)
         await pilot.click("#operation-tofu-check")
         await pilot.pause()
         await pilot.click("#copy-activity-infrastructure")
+        await pilot.pause()
 
-        assert app.clipboard == "> Check OpenTofu foundation\nValidated\nCompleted\n"
+        assert isinstance(app.screen, ActivityCopyDialog)
+        copy_text = app.screen.query_one("#activity-copy-text", TextArea)
+        expected = "> Check OpenTofu foundation\nValidated\nCompleted\n"
+        assert copy_text.text == expected
+        assert copy_text.selected_text == expected
+        assert (tmp_path / "logs" / "activity-report.txt").read_text(encoding="utf-8") == expected
+
+        await pilot.click("#activity-copy-direct")
+        await pilot.pause()
+        assert app.clipboard == expected
