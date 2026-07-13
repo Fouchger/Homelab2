@@ -41,8 +41,8 @@ jobs:
           curl -fsSLO --proto '=https' --tlsv1.2 --retry 3 "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/${archive}"
           curl -fsSLO --proto '=https' --tlsv1.2 --retry 3 "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
           grep -F " ${archive}" "tofu_${TOFU_VERSION}_SHA256SUMS" | sha256sum -c -
-          unzip -q "$archive"
-          sudo install -m 0755 tofu /usr/local/bin/tofu
+          unzip -q "$archive" tofu -d "${RUNNER_TEMP}/opentofu"
+          sudo install -m 0755 "${RUNNER_TEMP}/opentofu/tofu" /usr/local/bin/tofu
 
       - name: Check formatting
         run: uv run --locked ruff format --check .
