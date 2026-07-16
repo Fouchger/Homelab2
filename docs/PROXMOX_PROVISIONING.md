@@ -93,6 +93,13 @@ Reordering the list is safe. Changing a key declares one resource removed and an
 turn it off deliberately before a planned destroy. `nesting` defaults to false and should be
 enabled only for an application with a reviewed requirement.
 
+Debian 13 templates use systemd 257, which can start an LXC in a degraded state when nesting is
+disabled (for example, failed `dev-mqueue.mount`, `run-lock.mount`, and `tmp.mount`). If those
+failures occur, set `nesting: true` and verify the guest after replacement or restart. Keep the
+container unprivileged and do not also enable keyctl, arbitrary mount types, privileged mode, or an
+unconfined AppArmor profile without a separate requirement. Nesting exposes some host procfs and
+sysfs information to the guest, so it remains an explicit per-container security decision.
+
 ## Plan and acceptance
 
 Validate the YAML, then create a saved, non-destructive plan:

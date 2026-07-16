@@ -6,8 +6,9 @@ Proxmox LXC.
 
 ## Release status
 
-Phase 1, the control-plane foundation, is complete in `v0.1.0`, and the Phase 2 secure provisioning
-foundation is complete in `v0.2.0`. The completed foundation provides:
+Phases 1 through 3 are complete. `v0.3.0` adds accepted Proxmox LXC and multi-domain Cloudflare DNS
+provisioning to the control-plane and secure-runtime foundations from `v0.1.0` and `v0.2.0`. The
+completed foundation provides:
 
 - a guided site configuration editor;
 - strict validation and rejection of unknown settings;
@@ -17,10 +18,12 @@ foundation is complete in `v0.2.0`. The completed foundation provides:
 - keyboard and mouse navigation;
 - a confirmation-dialog foundation for future destructive operations;
 - both interactive and unattended command-line operation.
+- deterministic unprivileged Debian LXC lifecycle management on the configured bridge and VLAN;
+- explicit multi-zone Cloudflare A, AAAA, and CNAME ownership;
+- credential-aware application of only an explicitly reviewed saved OpenTofu plan.
 
-Phase 3 implementation is in progress: the typed model and OpenTofu project now describe
-unprivileged Debian LXC guests and explicit multi-domain Cloudflare DNS records. Ansible deployment
-and guarded apply operations follow in Phase 4. The menu only shows operations that are actually
+Ansible inventory, baseline guest configuration, curated application installation, and guarded
+control-panel apply operations follow in Phase 4. The menu only shows operations that are actually
 implemented. See
 [`DEVELOPMENT.md`](DEVELOPMENT.md) for the sequenced roadmap and outstanding GitHub issues, and
 [`CHANGELOG.md`](CHANGELOG.md) for release history.

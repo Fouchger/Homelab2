@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## [0.3.0] - 2026-07-16
+
 ### Added
 
 - Strict site models for stable-key, unprivileged Debian LXC guests with static management
@@ -24,6 +26,7 @@ All notable changes to this project are documented in this file.
 - The OpenTofu runner now passes only in-memory provider credentials, requires the Cloudflare token
   when records are declared, and redacts both provider tokens from diagnostics.
 - The guided configuration form preserves Phase 3 resources that are currently edited in YAML.
+- Debian 13 LXC guidance records the systemd 257 nesting requirement and its isolation tradeoff.
 
 ### Fixed
 
@@ -38,6 +41,11 @@ All notable changes to this project are documented in this file.
   and Ruff checks.
 - Saved-plan application with both runtime provider credentials, exact-plan enforcement, missing
   plan refusal, diagnostic redaction, and partial-apply recovery guidance.
+- Live disposable Proxmox acceptance covering create, no-change reconciliation, in-place update,
+  stable reordering, replacement, VLAN 30 connectivity from the VLAN 20 control plane, healthy
+  Debian 13 startup, reviewed destroy, and verified removal.
+- Live two-zone Cloudflare acceptance covering create, authoritative lookup, in-place TTL update,
+  stable reordering, reviewed deletion, authoritative NXDOMAIN, and clean final reconciliation.
 
 ## [0.2.0] - 2026-07-13
 
@@ -112,3 +120,4 @@ All notable changes to this project are documented in this file.
 
 [0.1.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.1.0
 [0.2.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.2.0
+[0.3.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.3.0

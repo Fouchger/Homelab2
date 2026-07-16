@@ -9,7 +9,7 @@ acceptance criteria, and implementation discussion for each active workstream.
 |---|---|---|
 | `v0.1.0` | Phase 1: control-plane foundation | Complete |
 | `v0.2.0` | Phase 2: secure provisioning foundation | Complete |
-| `v0.3.0` | Phase 3: Proxmox and Cloudflare provisioning | In progress |
+| `v0.3.0` | Phase 3: Proxmox and Cloudflare provisioning | Complete |
 | `v0.4.0` | Phase 4: system configuration and guarded operations | Planned |
 
 ## Phase 1 acceptance
@@ -56,21 +56,19 @@ authentication, the OpenTofu foundation plan, and an up-to-date control plane. I
 | 1 | CLI and clean-installer acceptance coverage | [#3](https://github.com/Fouchger/Homelab2/issues/3) | Phase 1 |
 | 2 | Offline age identity backup and recovery verification | [#11](https://github.com/Fouchger/Homelab2/issues/11) | Phase 2 operations |
 | 3 | Trusted Proxmox API TLS and certificate verification | [#12](https://github.com/Fouchger/Homelab2/issues/12) | Phase 2 hardening |
-| 4 | Proxmox resource provisioning | [#6](https://github.com/Fouchger/Homelab2/issues/6) | Phase 2 |
-| 5 | Multi-domain Cloudflare DNS provisioning | [#7](https://github.com/Fouchger/Homelab2/issues/7) | Phase 2 |
-| 6 | Ansible inventory and baseline configuration | [#8](https://github.com/Fouchger/Homelab2/issues/8) | #6 |
-| 7 | Guarded plan and apply operations | [#9](https://github.com/Fouchger/Homelab2/issues/9) | #6, #7, #8 |
-| 8 | Curated Community Scripts application catalog | [#14](https://github.com/Fouchger/Homelab2/issues/14) | #6, #8 |
+| 4 | Ansible inventory and baseline configuration | [#8](https://github.com/Fouchger/Homelab2/issues/8) | Phase 3 |
+| 5 | Guarded plan and apply operations | [#9](https://github.com/Fouchger/Homelab2/issues/9) | #8 |
+| 6 | Curated Community Scripts application catalog | [#14](https://github.com/Fouchger/Homelab2/issues/14) | Phase 3, #8 |
 
-Issues #6 and #7 are the Phase 3 provisioning workstreams and can progress independently on the
-completed Phase 2 foundation. Ansible follows usable Proxmox outputs, and control-panel apply
-operations come last so the interface exposes only workflows that are already safe and tested.
+Issues #6 and #7 completed the Phase 3 provisioning workstreams. Ansible follows the accepted
+Proxmox outputs, and guarded control-panel apply operations follow the tested CLI saved-plan
+workflow so the interface exposes only operations that are already safe and verified.
 Issues #11 and #12 preserve the explicit operator backup and TLS-hardening work without reopening
 the completed software foundation. Issue #14 follows the declarative resource and Ansible
 boundaries: Community Scripts may accelerate reviewed in-guest application installation, but its
 host-side scripts never share ownership of an OpenTofu-managed guest.
 
-## Phase 3 implementation contract
+## Phase 3 acceptance
 
 Phase 3 starts with an OpenTofu-owned, unprivileged Debian LXC profile. Each resource has a stable
 key, explicit container ID, hostname, template, size, and management address while inheriting the
@@ -82,14 +80,16 @@ zones. DNS-only and automatic TTL are the safe defaults. Internal `site.domain` 
 and every record has exactly one owner: a record declared in the site model belongs to OpenTofu;
 future DDNS or tunnel workflows must use separate records and may not mutate it implicitly.
 
-The `v0.3.0` interface remains plan-only. Live changes use an explicitly reviewed saved plan during
-acceptance; the guarded control-panel apply workflow remains in Phase 4 issue #9.
+The `v0.3.0` control-panel interface remains plan-only. Live changes use the credential-aware CLI
+wrapper to apply only an explicitly reviewed saved plan; the guarded control-panel apply workflow
+remains in Phase 4 issue #9.
 
-Implementation started on 2026-07-13. The typed site model, deterministic input mapping, pinned
-providers, guarded guest-automation SSH-key preparation, LXC and DNS resources, structured
-outputs, and offline example plan are implemented locally. Completion still requires review,
-publication, and disposable live create/update/destroy acceptance against the target Proxmox and
-Cloudflare accounts.
+Phase 3 was accepted on 2026-07-16 from the Ubuntu control plane against the production Proxmox and
+Cloudflare accounts. Disposable testing proved LXC create, in-place update, stable reordering,
+replacement, Debian 13 health, SSH access across the VLAN boundary, reviewed destroy, and clean
+reconciliation. Both Cloudflare zones passed create, authoritative resolution, in-place TTL update,
+stable reordering, reviewed deletion, authoritative NXDOMAIN verification, and clean final
+reconciliation. Issues #6 and #7 contain the detailed evidence.
 
 ## Engineering rules
 
