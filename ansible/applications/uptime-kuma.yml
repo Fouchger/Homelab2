@@ -15,7 +15,7 @@
 
     - name: Install pinned-adapter prerequisites
       ansible.builtin.apt:
-        name: [ca-certificates, curl, nodejs, npm, chromium]
+        name: [ca-certificates, curl, git, nodejs, npm]
         state: present
         update_cache: true
         cache_valid_time: 3600
@@ -39,6 +39,7 @@
         dest: "/var/cache/uptime-kuma-{{ uptime_kuma_version }}.tar.gz"
         checksum: "{{ uptime_kuma_source_checksum }}"
         mode: "0644"
+      when: not ansible_check_mode
 
     - name: Create application directory
       ansible.builtin.file:
@@ -47,6 +48,7 @@
         owner: uptime-kuma
         group: uptime-kuma
         mode: "0755"
+      when: not ansible_check_mode
 
     - name: Extract the approved application source
       ansible.builtin.unarchive:
@@ -57,6 +59,7 @@
         owner: uptime-kuma
         group: uptime-kuma
         creates: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/.homelab-source"
+      when: not ansible_check_mode
 
     - name: Record the approved source version
       ansible.builtin.copy:
@@ -65,6 +68,7 @@
         owner: uptime-kuma
         group: uptime-kuma
         mode: "0644"
+      when: not ansible_check_mode
 
     - name: Install locked production dependencies
       ansible.builtin.command: npm ci --omit=dev --no-audit
@@ -72,6 +76,7 @@
         chdir: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}"
         creates: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/node_modules/.package-lock.json"
       become_user: uptime-kuma
+      when: not ansible_check_mode
 
     - name: Download the immutable frontend archive
       ansible.builtin.get_url:
@@ -79,6 +84,7 @@
         dest: "/var/cache/uptime-kuma-dist-{{ uptime_kuma_version }}.tar.gz"
         checksum: "{{ uptime_kuma_dist_checksum }}"
         mode: "0644"
+      when: not ansible_check_mode
 
     - name: Extract the approved frontend
       ansible.builtin.unarchive:
@@ -88,6 +94,7 @@
         owner: uptime-kuma
         group: uptime-kuma
         creates: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/dist/index.html"
+      when: not ansible_check_mode
 
     - name: Select the approved application release
       ansible.builtin.file:
@@ -98,6 +105,7 @@
         group: uptime-kuma
         force: true
       notify: Restart Uptime Kuma
+      when: not ansible_check_mode
 
     - name: Install the Uptime Kuma service
       ansible.builtin.copy:
@@ -127,6 +135,7 @@
           [Install]
           WantedBy=multi-user.target
       notify: Restart Uptime Kuma
+      when: not ansible_check_mode
 
     - name: Enable and start Uptime Kuma
       ansible.builtin.systemd_service:
@@ -134,9 +143,11 @@
         enabled: true
         state: started
         daemon_reload: true
+      when: not ansible_check_mode
 
     - name: Flush service changes before health check
       ansible.builtin.meta: flush_handlers
+      when: not ansible_check_mode
 
     - name: Verify the Uptime Kuma health endpoint
       ansible.builtin.uri:
