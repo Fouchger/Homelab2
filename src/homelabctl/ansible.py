@@ -12,6 +12,8 @@ from pathlib import Path
 
 from homelabctl.configuration import find_project_root, load_config
 from homelabctl.guard import OperationLockedError, mutation_lock
+from homelabctl.progress import is_enabled as live_progress_enabled
+from homelabctl.progress import report
 
 
 class AnsibleError(RuntimeError):
@@ -96,11 +98,58 @@ def generate_inventory(
             "homelab_timezone": config.site.timezone,
         }
         summary.append(f"{key}: root@{address} ({hostname})")
-    inventory = {"all": {"hosts": hosts, "vars": {"ansible_become": False}}}
+    known_hosts = root / ".cache" / "ansible" / "known_hosts"
+    inventory = {
+        "all": {
+            "hosts": hosts,
+            "vars": {
+                "ansible_become": False,
+                # Never leave a hidden SSH confirmation prompt behind the menu.
+                # New host keys are recorded and changed keys still fail safely.
+                "ansible_ssh_common_args": (
+                    "-o StrictHostKeyChecking=accept-new "
+                    f"-o UserKnownHostsFile={known_hosts}"
+                ),
+            },
+        }
+    }
     inventory_path.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
     with suppress(OSError):
         os.chmod(inventory_path, 0o600)
     return inventory_path, tuple(summary)
+
+
+def _run_ansible_with_live_output(command: list[str], root: Path, diagnostic: Path) -> subprocess.CompletedProcess[str]:
+    """Run Ansible while immediately showing and saving its normal output."""
+
+    diagnostic.parent.mkdir(parents=True, exist_ok=True)
+    environment = os.environ.copy()
+    environment["ANSIBLE_NOCOLOR"] = "1"
+    environment["PYTHONUNBUFFERED"] = "1"
+    output: list[str] = []
+    try:
+        with subprocess.Popen(
+            command,
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+            env=environment,
+        ) as process, diagnostic.open("w", encoding="utf-8", newline="\n") as log:
+            assert process.stdout is not None
+            for raw_line in process.stdout:
+                line = raw_line.rstrip("\r\n")
+                output.append(line)
+                log.write(line + "\n")
+                log.flush()
+                if line:
+                    report(line)
+            returncode = process.wait()
+    except OSError as exc:
+        raise AnsibleError(f"Unable to start Ansible: {exc}") from exc
+    return subprocess.CompletedProcess(command, returncode, "\n".join(output), "")
 
 
 def run_baseline(
@@ -127,7 +176,13 @@ def run_baseline(
     if check:
         command.append("--check")
     try:
-        if check:
+        if live_progress_enabled():
+            if check:
+                completed = _run_ansible_with_live_output(command, root, diagnostic)
+            else:
+                with mutation_lock(root, "Ansible baseline apply"):
+                    completed = _run_ansible_with_live_output(command, root, diagnostic)
+        elif check:
             completed = subprocess.run(
                 command,
                 cwd=root,
@@ -148,9 +203,10 @@ def run_baseline(
                 )
     except OperationLockedError as exc:
         raise AnsibleError(str(exc)) from exc
-    diagnostic.parent.mkdir(parents=True, exist_ok=True)
-    safe_output = "\n".join((completed.stdout, completed.stderr)).strip()
-    diagnostic.write_text(safe_output + "\n", encoding="utf-8")
+    if not live_progress_enabled():
+        diagnostic.parent.mkdir(parents=True, exist_ok=True)
+        safe_output = "\n".join((completed.stdout, completed.stderr)).strip()
+        diagnostic.write_text(safe_output + "\n", encoding="utf-8")
     if completed.returncode != 0:
         raise AnsibleError(f"Ansible baseline failed; review the sanitized log at {diagnostic}")
     recap = tuple(

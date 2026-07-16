@@ -8,9 +8,10 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from homelabctl.ansible import AnsibleError, generate_inventory
+from homelabctl.ansible import AnsibleError, _run_ansible_with_live_output, generate_inventory
 from homelabctl.configuration import find_project_root, load_config
 from homelabctl.guard import OperationLockedError, mutation_lock
+from homelabctl.progress import is_enabled as live_progress_enabled
 
 UPTIME_KUMA_VERSION = "2.4.0"
 UPTIME_KUMA_SOURCE_SHA256 = "0ad39c4cbe2de5a2dd4869d02a8a4f0398b7b16217b0aeaff98d78cf37500c42"
@@ -78,8 +79,15 @@ def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
     ]
     if check:
         command.append("--check")
+    diagnostic = root / "logs" / "applications.log"
     try:
-        if check:
+        if live_progress_enabled():
+            if check:
+                completed = _run_ansible_with_live_output(command, root, diagnostic)
+            else:
+                with mutation_lock(root, f"Application apply: {key}"):
+                    completed = _run_ansible_with_live_output(command, root, diagnostic)
+        elif check:
             completed = subprocess.run(
                 command, cwd=root, capture_output=True, text=True, encoding="utf-8"
             )
@@ -90,10 +98,10 @@ def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
                 )
     except (OSError, subprocess.SubprocessError, OperationLockedError, AnsibleError) as exc:
         raise ApplicationError(str(exc)) from exc
-    diagnostic = root / "logs" / "applications.log"
-    diagnostic.parent.mkdir(parents=True, exist_ok=True)
-    output = "\n".join((completed.stdout, completed.stderr)).strip()
-    diagnostic.write_text(output + "\n", encoding="utf-8")
+    if not live_progress_enabled():
+        diagnostic.parent.mkdir(parents=True, exist_ok=True)
+        output = "\n".join((completed.stdout, completed.stderr)).strip()
+        diagnostic.write_text(output + "\n", encoding="utf-8")
     if completed.returncode != 0:
         raise ApplicationError(f"Application operation failed; review {diagnostic}")
     recap = tuple(

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, ClassVar, TypeVar
 
 from pydantic import ValidationError
+from rich.markup import escape
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
@@ -35,6 +36,7 @@ from homelabctl.configuration import ConfigurationError, find_project_root, load
 from homelabctl.doctor import run_checks
 from homelabctl.models import HomelabConfig, default_config
 from homelabctl.operations import OPERATIONS, OperationResult, execute, execute_with_secret
+from homelabctl.progress import reporting
 
 T = TypeVar("T")
 
@@ -919,8 +921,17 @@ class ControlPlaneApp(App[None]):
                     last_report = elapsed
 
         progress = asyncio.create_task(heartbeat())
+        def run_with_live_output() -> T:
+            def show_output(line: str) -> None:
+                # The operation runs in a worker thread. Textual updates must be
+                # marshalled back to its application thread.
+                self.call_from_thread(self.write_activity, escape(line), plain=line)
+
+            with reporting(show_output):
+                return function(*args)
+
         try:
-            result = await asyncio.to_thread(function, *args)
+            result = await asyncio.to_thread(run_with_live_output)
         finally:
             progress.cancel()
             with suppress(asyncio.CancelledError):

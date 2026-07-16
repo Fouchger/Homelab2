@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from io import StringIO
 from pathlib import Path
 from subprocess import CompletedProcess
 
@@ -9,6 +10,7 @@ import pytest
 from homelabctl.ansible import AnsibleError, generate_inventory, run_baseline
 from homelabctl.configuration import save_config
 from homelabctl.models import HomelabConfig
+from homelabctl.progress import reporting
 
 PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey homelab"
 
@@ -113,3 +115,40 @@ def test_check_mode_is_passed_to_ansible(tmp_path: Path, monkeypatch: pytest.Mon
     )
     assert "--check" in commands[-1]
     assert result.changed is False
+
+
+def test_menu_mode_streams_baseline_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = _site(tmp_path)
+
+    def run(command: list[str], **kwargs: object) -> CompletedProcess[str]:
+        output = {
+            "monitoring": {
+                "hostname": "monitoring",
+                "management_address": "192.168.10.20",
+            }
+        }
+        return CompletedProcess(command, 0, json.dumps(output), "")
+
+    class Process:
+        stdout = StringIO("TASK [Gathering Facts]\nmonitoring : ok=7 changed=0\n")
+        returncode = 0
+
+        def __enter__(self) -> Process:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def wait(self) -> int:
+            return self.returncode
+
+    monkeypatch.setattr("homelabctl.ansible.subprocess.run", run)
+    monkeypatch.setattr("homelabctl.ansible.subprocess.Popen", lambda *args, **kwargs: Process())
+    lines: list[str] = []
+    with reporting(lines.append):
+        result = run_baseline(
+            path, check=True, tofu_executable="tofu", ansible_executable="ansible-playbook"
+        )
+    assert lines == ["TASK [Gathering Facts]", "monitoring : ok=7 changed=0"]
+    assert result.changed is False
+    assert "TASK [Gathering Facts]" in result.diagnostic_log.read_text(encoding="utf-8")
