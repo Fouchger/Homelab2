@@ -31,7 +31,7 @@ TOOLS: tuple[tuple[str, str, bool], ...] = (
     ("ssh", "Administrator bootstrap connection", True),
     ("ssh-copy-id", "SSH key authorization", True),
     ("tofu", "Infrastructure provisioning", True),
-    ("ansible-playbook", "System configuration", False),
+    ("ansible-playbook", "System configuration", True),
     ("sops", "Secret file encryption", True),
     ("age", "Secret key encryption", True),
 )

@@ -23,7 +23,7 @@ Navigation keys:
 
 Actions are grouped by purpose instead of appearing in one large Operations page. Setup contains
 configuration and credential preparation, Proxmox contains administrator bootstrap actions,
-Infrastructure contains OpenTofu checks, Maintenance contains control-plane updates, and
+Infrastructure contains OpenTofu checks plus guest inventory and baseline operations, Maintenance contains control-plane updates, and
 Diagnostics contains readiness and effective-setting reports. Each section presents its actions
 as sub-actions and shares the same session activity history.
 
@@ -71,6 +71,22 @@ configuration. Private key material is never displayed or logged.
 **Check OpenTofu foundation** is intentionally non-destructive. It initializes only locked
 providers, validates generated typed inputs, and writes a saved plan to the ignored `artifacts/`
 directory. It never applies a plan. See [`OPENTOFU_STATE.md`](OPENTOFU_STATE.md).
+
+**Preview guest inventory** derives the current host set from the accepted `proxmox_lxcs`
+OpenTofu output and refuses configuration/state drift. The generated JSON inventory is stored
+under ignored `.cache/ansible/` runtime storage and contains key paths but no private material.
+
+**Preview guest baseline** runs the locked Debian-family playbook in Ansible check mode. **Apply
+guest baseline** repeats that preview in the confirmation dialog, then configures guests serially.
+The baseline creates the dedicated automation account, installs its public key, configures explicit
+sudo access, and manages hostname, timezone, baseline packages, and the ownership marker. Ansible
+output is written to the shared activity view and the ignored `logs/ansible.log` diagnostic file.
+
+**Preview curated applications** displays the reviewed Community Scripts revision, immutable
+Uptime Kuma release, and both artifact checksums before running the adapter in check mode. **Apply
+curated applications** repeats the preview, requires confirmation, installs through the dedicated
+automation account, and reports success only after the application health check passes. See
+[`APPLICATIONS.md`](APPLICATIONS.md).
 
 Action sections scroll when needed, so no implemented menu action is clipped. Secret-entry actions
 use masked dialogs and pass values directly to their encrypted operation without writing them to

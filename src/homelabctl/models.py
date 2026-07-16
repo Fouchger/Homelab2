@@ -330,6 +330,21 @@ class DeploymentSettings(StrictModel):
     require_confirmation: bool = True
 
 
+class ApplicationSettings(StrictModel):
+    type: Literal["uptime-kuma"]
+    guest: str
+    enabled: bool = True
+    port: int = Field(default=3001, ge=1024, le=65535)
+
+    @field_validator("guest")
+    @classmethod
+    def validate_guest(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not SITE_NAME_PATTERN.fullmatch(normalized):
+            raise ValueError("use an existing stable guest key")
+        return normalized
+
+
 class HomelabConfig(StrictModel):
     """Top-level, versioned configuration for one homelab site."""
 
@@ -340,6 +355,7 @@ class HomelabConfig(StrictModel):
     network: NetworkSettings = Field(default_factory=NetworkSettings)
     automation: AutomationSettings = Field(default_factory=AutomationSettings)
     deployment: DeploymentSettings = Field(default_factory=DeploymentSettings)
+    applications: dict[str, ApplicationSettings] = Field(default_factory=dict, max_length=20)
 
     @model_validator(mode="after")
     def validate_managed_resources(self) -> HomelabConfig:
@@ -375,6 +391,13 @@ class HomelabConfig(StrictModel):
             raise ValueError(
                 "at least one automation SSH public key or public key file is required for containers"
             )
+
+        container_keys = {container.key for container in containers}
+        for key, application in self.applications.items():
+            if not SITE_NAME_PATTERN.fullmatch(key):
+                raise ValueError(f"application key {key!r} must be a stable lowercase key")
+            if application.guest not in container_keys:
+                raise ValueError(f"application {key} targets unknown container {application.guest}")
 
         domain_set = set(self.cloudflare.domains)
         record_keys = [record.resource_key for record in self.cloudflare.records]

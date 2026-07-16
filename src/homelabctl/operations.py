@@ -9,6 +9,12 @@ from pathlib import Path
 
 import yaml
 
+from homelabctl.ansible import AnsibleError, generate_inventory, run_baseline
+from homelabctl.applications import (
+    ApplicationError,
+    application_plan,
+    run_applications,
+)
 from homelabctl.automation_ssh import (
     AutomationSshError,
     ensure_automation_ssh_key,
@@ -39,7 +45,7 @@ from homelabctl.secrets import (
     set_cloudflare_token,
     validate_provider_secret,
 )
-from homelabctl.tofu import TofuError, check_foundation
+from homelabctl.tofu import TofuError, apply_saved_plan, check_foundation
 from homelabctl.updater import UpdateError, apply_update, prepare_update
 
 
@@ -368,6 +374,90 @@ def check_tofu_foundation(path: Path) -> OperationResult:
     )
 
 
+def apply_tofu_foundation(path: Path) -> OperationResult:
+    try:
+        result = apply_saved_plan(path)
+    except (ConfigurationError, SecretError, TofuError) as exc:
+        return OperationResult(False, "Apply OpenTofu plan", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Apply OpenTofu plan",
+        (
+            f"Applied reviewed plan: {result.plan_path}",
+            f"Diagnostic log: {result.diagnostic_log}",
+        ),
+    )
+
+
+def preview_guest_inventory(path: Path) -> OperationResult:
+    try:
+        inventory, hosts = generate_inventory(path)
+    except (AnsibleError, ConfigurationError) as exc:
+        return OperationResult(False, "Guest automation inventory", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Guest automation inventory",
+        (*hosts, f"Runtime inventory: {inventory}"),
+    )
+
+
+def check_guest_baseline(path: Path) -> OperationResult:
+    try:
+        result = run_baseline(path, check=True)
+    except (AnsibleError, ConfigurationError) as exc:
+        return OperationResult(False, "Guest baseline preview", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Guest baseline preview",
+        (
+            *result.lines,
+            "No guest changes were applied",
+            f"Diagnostic log: {result.diagnostic_log}",
+        ),
+    )
+
+
+def apply_guest_baseline(path: Path) -> OperationResult:
+    try:
+        result = run_baseline(path, check=False)
+    except (AnsibleError, ConfigurationError) as exc:
+        return OperationResult(False, "Guest baseline apply", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Guest baseline apply",
+        (*result.lines, f"Diagnostic log: {result.diagnostic_log}"),
+    )
+
+
+def preview_curated_applications(path: Path) -> OperationResult:
+    try:
+        lines = application_plan(path)
+        result = run_applications(path, check=True)
+    except (ApplicationError, ConfigurationError) as exc:
+        return OperationResult(False, "Curated application preview", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Curated application preview",
+        (*lines, *result.lines, "No application changes were applied"),
+    )
+
+
+def apply_curated_applications(path: Path) -> OperationResult:
+    try:
+        result = run_applications(path, check=False)
+    except (ApplicationError, ConfigurationError) as exc:
+        return OperationResult(False, "Curated application apply", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Curated application apply",
+        (
+            *result.lines,
+            f"Health check passed on guest {result.guest}",
+            f"Diagnostic log: {result.diagnostic_log}",
+        ),
+    )
+
+
 def automation_ssh_plan(path: Path) -> OperationResult:
     try:
         config = load_config(path)
@@ -512,6 +602,54 @@ OPERATIONS: tuple[Operation, ...] = (
         "Initialize locked providers, validate typed inputs, and create a non-destructive plan.",
         check_tofu_foundation,
         section="infrastructure",
+    ),
+    Operation(
+        "tofu-apply",
+        "Apply reviewed OpenTofu plan",
+        "Create a fresh plan, confirm it, and apply that exact provenance-checked plan.",
+        apply_tofu_foundation,
+        section="infrastructure",
+        destructive=True,
+        plan=check_tofu_foundation,
+    ),
+    Operation(
+        "ansible-inventory",
+        "Preview guest inventory",
+        "Derive a secret-free runtime inventory from the accepted OpenTofu state.",
+        preview_guest_inventory,
+        section="infrastructure",
+    ),
+    Operation(
+        "ansible-check",
+        "Preview guest baseline",
+        "Run the Debian-family baseline in Ansible check mode without changing guests.",
+        check_guest_baseline,
+        section="infrastructure",
+    ),
+    Operation(
+        "ansible-apply",
+        "Apply guest baseline",
+        "Preview, confirm, and apply the baseline to provisioned guests one at a time.",
+        apply_guest_baseline,
+        section="infrastructure",
+        destructive=True,
+        plan=check_guest_baseline,
+    ),
+    Operation(
+        "applications-check",
+        "Preview curated applications",
+        "Verify pinned snapshots and preview in-guest application changes.",
+        preview_curated_applications,
+        section="infrastructure",
+    ),
+    Operation(
+        "applications-apply",
+        "Apply curated applications",
+        "Preview, confirm, install, and health-check approved application snapshots.",
+        apply_curated_applications,
+        section="infrastructure",
+        destructive=True,
+        plan=preview_curated_applications,
     ),
 )
 

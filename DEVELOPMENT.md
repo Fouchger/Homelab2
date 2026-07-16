@@ -10,7 +10,7 @@ acceptance criteria, and implementation discussion for each active workstream.
 | `v0.1.0` | Phase 1: control-plane foundation | Complete |
 | `v0.2.0` | Phase 2: secure provisioning foundation | Complete |
 | `v0.3.0` | Phase 3: Proxmox and Cloudflare provisioning | Complete |
-| `v0.4.0` | Phase 4: system configuration and guarded operations | Planned |
+| `v0.4.0` | Phase 4: system configuration and guarded operations | In progress |
 
 ## Phase 1 acceptance
 
@@ -67,6 +67,19 @@ Issues #11 and #12 preserve the explicit operator backup and TLS-hardening work 
 the completed software foundation. Issue #14 follows the declarative resource and Ansible
 boundaries: Community Scripts may accelerate reviewed in-guest application installation, but its
 host-side scripts never share ownership of an OpenTofu-managed guest.
+
+## Phase 4 implementation status
+
+The unreleased implementation now derives ignored Ansible inventory from accepted OpenTofu
+outputs, applies a minimal Debian-family baseline through check/confirm/apply boundaries, and
+serializes infrastructure mutations across CLI and control-panel processes. OpenTofu menu apply
+uses a newly created plan with configuration and plan fingerprints.
+
+The curated application pilot targets Uptime Kuma 2.4.0 inside one existing OpenTofu-owned guest.
+It uses the dedicated automation account, checksum-verifies immutable source and frontend
+artifacts, separates versioned code from persistent data, and requires an HTTP health check.
+Production acceptance still requires disposable install, clean second apply, rollback, destroy,
+rebuild, and data-recovery verification before issues #8, #9, and #14 or `v0.4.0` are complete.
 
 ## Phase 3 acceptance
 

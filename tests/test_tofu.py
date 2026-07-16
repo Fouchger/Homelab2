@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import subprocess
+from hashlib import sha256
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -17,6 +19,16 @@ from homelabctl.tofu import (
     check_foundation,
     tofu_variables,
 )
+
+
+def _tofu_run_with_plan(plan_path: Path, output: str) -> Mock:
+    def execute(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "plan" in command:
+            plan_path.parent.mkdir(parents=True, exist_ok=True)
+            plan_path.write_bytes(b"saved-plan")
+        return subprocess.CompletedProcess(command, 0, output, "")
+
+    return Mock(side_effect=execute)
 
 
 def test_validated_config_maps_to_typed_non_secret_inputs() -> None:
@@ -127,10 +139,8 @@ def test_foundation_check_never_writes_runtime_token(tmp_path: Path, monkeypatch
     config_path = save_config(default_config(), tmp_path / "site.yaml")
     token = "homelab@pve!control-plane=runtime-secret"
     bundle = SecretBundle(proxmox=ProviderSecret(api_token=token))
-    run = Mock(
-        return_value=subprocess.CompletedProcess(
-            args=["tofu"], returncode=0, stdout=f"provider output {token}", stderr=""
-        )
+    run = _tofu_run_with_plan(
+        tmp_path / "artifacts" / "foundation.tfplan", f"provider output {token}"
     )
     monkeypatch.setattr("homelabctl.tofu.load_secrets", Mock(return_value=bundle))
     monkeypatch.setattr("homelabctl.tofu.subprocess.run", run)
@@ -165,13 +175,9 @@ def test_foundation_check_redacts_cloudflare_token(tmp_path: Path, monkeypatch) 
         proxmox=ProviderSecret(api_token=proxmox_token),
         cloudflare=ProviderSecret(api_token=cloudflare_token),
     )
-    run = Mock(
-        return_value=subprocess.CompletedProcess(
-            args=["tofu"],
-            returncode=0,
-            stdout=f"provider output {proxmox_token} and {cloudflare_token}",
-            stderr="",
-        )
+    run = _tofu_run_with_plan(
+        tmp_path / "artifacts" / "foundation.tfplan",
+        f"provider output {proxmox_token} and {cloudflare_token}",
     )
     load = Mock(return_value=bundle)
     monkeypatch.setattr("homelabctl.tofu.load_secrets", load)
@@ -206,6 +212,18 @@ def test_saved_plan_apply_supplies_runtime_credentials_and_exact_plan(
     plan_path = tmp_path / "artifacts" / "foundation.tfplan"
     plan_path.parent.mkdir()
     plan_path.write_bytes(b"saved-plan")
+    metadata = {
+        "format": 1,
+        "configuration_sha256": sha256(
+            json.dumps(
+                tofu_variables(HomelabConfig.model_validate(data)),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
+        "plan_sha256": sha256(b"saved-plan").hexdigest(),
+    }
+    plan_path.with_suffix(".tfplan.json").write_text(json.dumps(metadata), encoding="utf-8")
     (tmp_path / "infrastructure").mkdir()
     proxmox_token = "proxmox-runtime-secret"
     cloudflare_token = "cloudflare-runtime-secret"

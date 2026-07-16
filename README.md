@@ -22,9 +22,9 @@ completed foundation provides:
 - explicit multi-zone Cloudflare A, AAAA, and CNAME ownership;
 - credential-aware application of only an explicitly reviewed saved OpenTofu plan.
 
-Ansible inventory, baseline guest configuration, curated application installation, and guarded
-control-panel apply operations follow in Phase 4. The menu only shows operations that are actually
-implemented. See
+Phase 4 is in progress: the unreleased tree adds OpenTofu-derived Ansible inventory, Debian-family
+baseline configuration, guarded OpenTofu and Ansible apply operations, and a checksum-pinned
+Uptime Kuma application pilot. The menu only shows operations that are actually implemented. See
 [`DEVELOPMENT.md`](DEVELOPMENT.md) for the sequenced roadmap and outstanding GitHub issues, and
 [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
@@ -87,6 +87,8 @@ Task commands remain available for unattended operation and recovery. See
 resource contracts are documented in
 [`docs/PROXMOX_PROVISIONING.md`](docs/PROXMOX_PROVISIONING.md) and
 [`docs/CLOUDFLARE_DNS.md`](docs/CLOUDFLARE_DNS.md).
+The curated in-guest application boundary and Uptime Kuma pilot are documented in
+[`docs/APPLICATIONS.md`](docs/APPLICATIONS.md).
 
 Once installed, future code upgrades are available through **Maintenance → Update control plane**.
 The updater previews GitHub changes, accepts only a clean fast-forward, preserves ignored runtime
@@ -126,6 +128,12 @@ task proxmox:bootstrap       Create/reconcile the API user, role, ACL, and token
 task infrastructure:ssh-key Create and configure the guest automation SSH key
 task tofu:check              Validate typed inputs and create a non-destructive plan
 task tofu:apply              Apply only the existing reviewed plan with runtime credentials
+task ansible:inventory       Derive ignored runtime inventory from OpenTofu outputs
+task ansible:check           Preview the Debian-family guest baseline
+task ansible:apply           Apply the reviewed guest baseline
+task applications:plan      Show curated application revisions and checksums
+task applications:check     Preview curated application changes
+task applications:apply     Apply and health-check curated applications
 task check             Run formatting, linting, tests, and config validation
 ```
 

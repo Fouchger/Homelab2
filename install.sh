@@ -64,6 +64,7 @@ install_system_prerequisites() {
   command -v git >/dev/null 2>&1 || missing_packages+=(git)
   command -v age >/dev/null 2>&1 || missing_packages+=(age)
   command -v ssh >/dev/null 2>&1 || missing_packages+=(openssh-client)
+  command -v ansible-playbook >/dev/null 2>&1 || missing_packages+=(ansible-core)
   command -v unzip >/dev/null 2>&1 || missing_packages+=(unzip)
   dpkg-query -W -f='${Status}' ca-certificates 2>/dev/null | grep -Fq 'install ok installed' || missing_packages+=(ca-certificates)
 
@@ -209,6 +210,9 @@ main() {
   install_sops
   install_tofu
   clone_or_update_repository
+
+  info "Installing locked Ansible collections"
+  ansible-galaxy collection install --requirements-file "${INSTALL_DIR}/ansible/requirements.yml"
 
   printf '\nInstallation complete.\n\n'
   printf 'Next steps:\n'

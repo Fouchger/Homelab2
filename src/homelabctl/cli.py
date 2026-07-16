@@ -12,6 +12,8 @@ from rich.console import Console
 from rich.table import Table
 
 from homelabctl import __version__
+from homelabctl.ansible import AnsibleError, generate_inventory, run_baseline
+from homelabctl.applications import ApplicationError, application_plan, run_applications
 from homelabctl.configuration import (
     ConfigurationError,
     find_project_root,
@@ -174,6 +176,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_argument(infrastructure_ssh)
 
+    ansible = subcommands.add_parser("ansible", help="configure provisioned guests")
+    ansible_commands = ansible.add_subparsers(dest="ansible_command", required=True)
+    for name, help_text in (
+        ("inventory", "derive runtime inventory from OpenTofu outputs"),
+        ("check", "preview the guest baseline without applying changes"),
+        ("apply", "apply the guest baseline after a separate review"),
+    ):
+        ansible_command = ansible_commands.add_parser(name, help=help_text)
+        _add_config_argument(ansible_command)
+
+    applications = subcommands.add_parser("applications", help="manage curated applications")
+    application_commands = applications.add_subparsers(dest="applications_command", required=True)
+    for name, help_text in (
+        ("plan", "show approved revisions and checksums"),
+        ("check", "preview application changes and verify connectivity"),
+        ("apply", "apply and health-check curated applications"),
+    ):
+        application_command = application_commands.add_parser(name, help=help_text)
+        _add_config_argument(application_command)
+
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
     schema.add_argument("--output", type=Path, default=Path("config/schema/site.schema.json"))
     return parser
@@ -303,6 +325,40 @@ def _infrastructure_ssh_key(config_path: Path, console: Console) -> int:
     return 0 if result.succeeded else 2
 
 
+def _ansible(args: argparse.Namespace, console: Console) -> int:
+    config_path = resolve_config_path(args.config)
+    if args.ansible_command == "inventory":
+        path, hosts = generate_inventory(config_path)
+        console.print("[green]Runtime guest inventory generated[/]")
+        for host in hosts:
+            console.print(f"- {host}")
+        console.print(f"[cyan]Ignored runtime inventory:[/] {path}")
+        return 0
+    result = run_baseline(config_path, check=args.ansible_command == "check")
+    label = (
+        "preview completed; no changes applied" if args.ansible_command == "check" else "applied"
+    )
+    console.print(f"[green]Guest baseline {label}[/]")
+    for line in result.lines:
+        console.print(f"- {line}")
+    console.print(f"[cyan]Diagnostic log:[/] {result.diagnostic_log}")
+    return 0
+
+
+def _applications(args: argparse.Namespace, console: Console) -> int:
+    config_path = resolve_config_path(args.config)
+    for line in application_plan(config_path):
+        console.print(f"- {line}")
+    if args.applications_command == "plan":
+        console.print("[yellow]Plan only. No guest connection was made.[/]")
+        return 0
+    result = run_applications(config_path, check=args.applications_command == "check")
+    action = "preview completed" if args.applications_command == "check" else "applied and healthy"
+    console.print(f"[green]Curated application {action}:[/] {result.application}")
+    console.print(f"[cyan]Diagnostic log:[/] {result.diagnostic_log}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -353,11 +409,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _tofu_apply(args, console)
         if command == "infrastructure" and args.infrastructure_command == "ssh-key":
             return _infrastructure_ssh_key(resolve_config_path(args.config), console)
+        if command == "ansible":
+            return _ansible(args, console)
+        if command == "applications":
+            return _applications(args, console)
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
             return 0
-    except (ConfigurationError, ProxmoxBootstrapError, SecretError, TofuError, UpdateError) as exc:
+    except (
+        AnsibleError,
+        ApplicationError,
+        ConfigurationError,
+        ProxmoxBootstrapError,
+        SecretError,
+        TofuError,
+        UpdateError,
+    ) as exc:
         console.print(f"[red]{exc}[/red]")
         return 2
 

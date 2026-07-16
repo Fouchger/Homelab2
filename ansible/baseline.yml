@@ -1,0 +1,65 @@
+---
+- name: Apply the Homelab Debian-family baseline
+  hosts: all
+  gather_facts: true
+  serial: 1
+  tasks:
+    - name: Require a supported Debian-family guest
+      ansible.builtin.assert:
+        that: ansible_facts.os_family == "Debian"
+        fail_msg: "Only Debian and Ubuntu guests are supported by this baseline"
+
+    - name: Set the configured hostname
+      ansible.builtin.hostname:
+        name: "{{ homelab_hostname }}"
+
+    - name: Set the configured timezone
+      community.general.timezone:
+        name: "{{ homelab_timezone }}"
+
+    - name: Install baseline packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - sudo
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the dedicated automation account
+      ansible.builtin.user:
+        name: "{{ homelab_automation_user }}"
+        create_home: true
+        shell: /bin/bash
+        groups: sudo
+        append: true
+
+    - name: Inspect the automation account home
+      ansible.builtin.stat:
+        path: "/home/{{ homelab_automation_user }}"
+      register: automation_home
+
+    - name: Install the dedicated automation public key
+      ansible.posix.authorized_key:
+        user: "{{ homelab_automation_user }}"
+        key: "{{ lookup('file', hostvars[inventory_hostname].ansible_ssh_private_key_file + '.pub') }}"
+        state: present
+      when: not ansible_check_mode or automation_home.stat.exists
+
+    - name: Grant explicit passwordless sudo to the automation account
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/90-homelab-{{ homelab_automation_user }}"
+        content: "{{ homelab_automation_user }} ALL=(ALL:ALL) NOPASSWD: ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Record baseline ownership
+      ansible.builtin.copy:
+        dest: /etc/homelab-managed
+        content: "managed-by=homelabctl\n"
+        owner: root
+        group: root
+        mode: "0644"

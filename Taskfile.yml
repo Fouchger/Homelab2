@@ -102,6 +102,41 @@ tasks:
     cmds:
       - uv run --locked --no-dev homelabctl infrastructure ssh-key --config "{{.CONFIG}}"
 
+  ansible:inventory:
+    desc: Derive ignored runtime inventory from accepted OpenTofu outputs
+    cmds:
+      - uv run --locked --no-dev homelabctl ansible inventory --config "{{.CONFIG}}"
+
+  ansible:check:
+    desc: Preview the Debian-family guest baseline without changing guests
+    cmds:
+      - uv run --locked --no-dev homelabctl ansible check --config "{{.CONFIG}}"
+
+  ansible:apply:
+    desc: Apply the reviewed Debian-family guest baseline
+    cmds:
+      - uv run --locked --no-dev homelabctl ansible apply --config "{{.CONFIG}}"
+
+  ansible:collections:
+    desc: Install the locked Ansible collections
+    cmds:
+      - ansible-galaxy collection install --requirements-file ansible/requirements.yml
+
+  applications:plan:
+    desc: Display curated application revisions and checksums
+    cmds:
+      - uv run --locked --no-dev homelabctl applications plan --config "{{.CONFIG}}"
+
+  applications:check:
+    desc: Preview curated application changes without applying them
+    cmds:
+      - uv run --locked --no-dev homelabctl applications check --config "{{.CONFIG}}"
+
+  applications:apply:
+    desc: Apply and health-check the curated application snapshot
+    cmds:
+      - uv run --locked --no-dev homelabctl applications apply --config "{{.CONFIG}}"
+
   tofu:ci:
     desc: Check OpenTofu formatting, initialization, validation, and the example plan
     cmds:

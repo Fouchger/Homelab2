@@ -7,9 +7,11 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from homelabctl.configuration import find_project_root, load_config
+from homelabctl.guard import OperationLockedError, mutation_lock
 from homelabctl.models import HomelabConfig, normalize_ssh_public_key
 from homelabctl.proxmox_bootstrap import DiagnosticLog
 from homelabctl.secrets import load_secrets, resolve_secrets_path
@@ -30,6 +32,19 @@ class TofuCheckResult:
 class TofuApplyResult:
     plan_path: Path
     diagnostic_log: Path
+
+
+def _plan_metadata_path(plan_path: Path) -> Path:
+    return plan_path.with_suffix(f"{plan_path.suffix}.json")
+
+
+def _configuration_fingerprint(config: HomelabConfig) -> str:
+    payload = json.dumps(tofu_variables(config), sort_keys=True, separators=(",", ":"))
+    return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _file_fingerprint(path: Path) -> str:
+    return sha256(path.read_bytes()).hexdigest()
 
 
 def infrastructure_directory(start: Path | None = None) -> Path:
@@ -242,6 +257,16 @@ def check_foundation(
         diagnostic=diagnostic,
         accepted_codes=(0, 2),
     )
+    if not plan_path.is_file():
+        raise TofuError(f"OpenTofu did not create the expected saved plan: {plan_path}")
+    metadata = {
+        "format": 1,
+        "configuration_sha256": _configuration_fingerprint(config),
+        "plan_sha256": _file_fingerprint(plan_path),
+    }
+    _plan_metadata_path(plan_path).write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
+    )
     diagnostic.write("tofu.check.complete", "format, initialization, validation, and plan passed")
     return TofuCheckResult(variables_path, plan_path, diagnostic.path)
 
@@ -263,23 +288,38 @@ def apply_saved_plan(
     plan_path = root / "artifacts" / "foundation.tfplan"
     if not plan_path.is_file():
         raise TofuError(f"Saved OpenTofu plan not found: {plan_path}. Run `task tofu:check` first.")
+    metadata_path = _plan_metadata_path(plan_path)
+    if not metadata_path.is_file():
+        raise TofuError("Saved OpenTofu plan provenance is missing; create and review a new plan")
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise TofuError("Saved OpenTofu plan provenance is invalid; create a new plan") from exc
+    if metadata.get("configuration_sha256") != _configuration_fingerprint(config):
+        raise TofuError("Site configuration changed after planning; create and review a new plan")
+    if metadata.get("plan_sha256") != _file_fingerprint(plan_path):
+        raise TofuError("Saved OpenTofu plan changed after planning; create and review a new plan")
 
     diagnostic = DiagnosticLog(root / "logs" / "opentofu.log")
     environment = _runtime_environment(root, config, secrets_path)
     diagnostic.write("tofu.apply.start", f"saved_plan={plan_path}")
-    _run(
-        [
-            tofu,
-            "apply",
-            "-lock=true",
-            "-lock-timeout=30s",
-            "-input=false",
-            str(plan_path),
-        ],
-        cwd=working,
-        environment=environment,
-        diagnostic=diagnostic,
-        timeout=3600,
-    )
+    try:
+        with mutation_lock(root, "OpenTofu apply"):
+            _run(
+                [
+                    tofu,
+                    "apply",
+                    "-lock=true",
+                    "-lock-timeout=30s",
+                    "-input=false",
+                    str(plan_path),
+                ],
+                cwd=working,
+                environment=environment,
+                diagnostic=diagnostic,
+                timeout=3600,
+            )
+    except OperationLockedError as exc:
+        raise TofuError(str(exc)) from exc
     diagnostic.write("tofu.apply.complete", "reviewed saved plan applied")
     return TofuApplyResult(plan_path, diagnostic.path)

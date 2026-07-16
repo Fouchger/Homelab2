@@ -1,0 +1,161 @@
+"""Runtime Ansible inventory and guarded Debian-family baseline execution."""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+from contextlib import suppress
+from dataclasses import dataclass
+from pathlib import Path
+
+from homelabctl.configuration import find_project_root, load_config
+from homelabctl.guard import OperationLockedError, mutation_lock
+
+
+class AnsibleError(RuntimeError):
+    """Raised when inventory generation or baseline execution is unsafe."""
+
+
+@dataclass(frozen=True, slots=True)
+class AnsibleResult:
+    changed: bool
+    inventory_path: Path
+    diagnostic_log: Path
+    lines: tuple[str, ...]
+
+
+def _paths(config_path: Path) -> tuple[Path, Path, Path]:
+    root = find_project_root(config_path.parent)
+    runtime = root / ".cache" / "ansible"
+    runtime.mkdir(parents=True, exist_ok=True)
+    return root, runtime / "inventory.json", root / "logs" / "ansible.log"
+
+
+def _tofu_outputs(root: Path, tofu_executable: str | None = None) -> dict[str, object]:
+    tofu = tofu_executable or shutil.which("tofu")
+    if not tofu:
+        raise AnsibleError("OpenTofu is not installed or not on PATH")
+    completed = subprocess.run(
+        [tofu, f"-chdir={root / 'infrastructure'}", "output", "-json", "proxmox_lxcs"],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if completed.returncode != 0:
+        raise AnsibleError(
+            "Unable to read provisioned guests from OpenTofu state. "
+            "Apply the reviewed infrastructure plan first."
+        )
+    try:
+        value = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise AnsibleError("OpenTofu returned invalid guest inventory output") from exc
+    if not isinstance(value, dict):
+        raise AnsibleError("OpenTofu guest inventory output must be an object")
+    return value
+
+
+def generate_inventory(
+    config_path: Path, *, tofu_executable: str | None = None
+) -> tuple[Path, tuple[str, ...]]:
+    config = load_config(config_path)
+    root, inventory_path, _ = _paths(config_path)
+    outputs = _tofu_outputs(root, tofu_executable)
+    declared = {guest.key: guest for guest in config.proxmox.containers}
+    if set(outputs) != set(declared):
+        raise AnsibleError(
+            "OpenTofu state does not match the configured guest set; create and review a new plan"
+        )
+    key_path = Path(config.automation.ssh_private_key).expanduser().resolve()
+    if not key_path.is_file():
+        raise AnsibleError(f"Guest automation SSH private key not found: {key_path}")
+    hosts: dict[str, object] = {}
+    summary: list[str] = []
+    for key in sorted(outputs):
+        guest = outputs[key]
+        if not isinstance(guest, dict):
+            raise AnsibleError(f"OpenTofu output for guest {key} is invalid")
+        address = guest.get("management_address")
+        hostname = guest.get("hostname")
+        if not isinstance(address, str) or not isinstance(hostname, str):
+            raise AnsibleError(f"OpenTofu output for guest {key} is incomplete")
+        hosts[key] = {
+            "ansible_host": address,
+            "ansible_user": "root",
+            "ansible_ssh_private_key_file": str(key_path),
+            "homelab_hostname": hostname,
+            "homelab_automation_user": config.automation.ssh_user,
+            "homelab_timezone": config.site.timezone,
+        }
+        summary.append(f"{key}: root@{address} ({hostname})")
+    inventory = {"all": {"hosts": hosts, "vars": {"ansible_become": False}}}
+    inventory_path.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
+    with suppress(OSError):
+        os.chmod(inventory_path, 0o600)
+    return inventory_path, tuple(summary)
+
+
+def run_baseline(
+    config_path: Path,
+    *,
+    check: bool,
+    tofu_executable: str | None = None,
+    ansible_executable: str | None = None,
+) -> AnsibleResult:
+    root, _, diagnostic = _paths(config_path)
+    inventory, hosts = generate_inventory(config_path, tofu_executable=tofu_executable)
+    if not hosts:
+        raise AnsibleError("No provisioned guests are configured for baseline management")
+    ansible = ansible_executable or shutil.which("ansible-playbook")
+    if not ansible:
+        raise AnsibleError("ansible-playbook is not installed or not on PATH")
+    command = [
+        ansible,
+        "-i",
+        str(inventory),
+        str(root / "ansible" / "baseline.yml"),
+        "--diff",
+    ]
+    if check:
+        command.append("--check")
+    try:
+        if check:
+            completed = subprocess.run(
+                command,
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+        else:
+            with mutation_lock(root, "Ansible baseline apply"):
+                completed = subprocess.run(
+                    command,
+                    cwd=root,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                )
+    except OperationLockedError as exc:
+        raise AnsibleError(str(exc)) from exc
+    diagnostic.parent.mkdir(parents=True, exist_ok=True)
+    safe_output = "\n".join((completed.stdout, completed.stderr)).strip()
+    diagnostic.write_text(safe_output + "\n", encoding="utf-8")
+    if completed.returncode != 0:
+        raise AnsibleError(f"Ansible baseline failed; review the sanitized log at {diagnostic}")
+    recap = tuple(
+        line.strip()
+        for line in completed.stdout.splitlines()
+        if line.strip().startswith(tuple(host.split(":", 1)[0] for host in hosts))
+    )
+    return AnsibleResult(
+        changed="changed=0" not in completed.stdout,
+        inventory_path=inventory,
+        diagnostic_log=diagnostic,
+        lines=recap or hosts,
+    )

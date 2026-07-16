@@ -34,3 +34,4 @@ deployment:
   check_interval_minutes: 60
   automatic_updates: false
   require_confirmation: true
+applications: {}

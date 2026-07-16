@@ -1,5 +1,37 @@
 {
   "$defs": {
+    "ApplicationSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "uptime-kuma",
+          "title": "Type",
+          "type": "string"
+        },
+        "guest": {
+          "title": "Guest",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "port": {
+          "default": 3001,
+          "maximum": 65535,
+          "minimum": 1024,
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "guest"
+      ],
+      "title": "ApplicationSettings",
+      "type": "object"
+    },
     "AutomationSettings": {
       "additionalProperties": false,
       "properties": {
@@ -396,6 +428,14 @@
     },
     "deployment": {
       "$ref": "#/$defs/DeploymentSettings"
+    },
+    "applications": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ApplicationSettings"
+      },
+      "maxProperties": 20,
+      "title": "Applications",
+      "type": "object"
     }
   },
   "title": "HomelabConfig",

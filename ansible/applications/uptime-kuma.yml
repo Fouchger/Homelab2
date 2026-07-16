@@ -1,0 +1,157 @@
+---
+- name: Install the curated Uptime Kuma pilot
+  hosts: all
+  gather_facts: true
+  vars:
+    uptime_kuma_version: "2.4.0"
+    uptime_kuma_source_checksum: "sha256:0ad39c4cbe2de5a2dd4869d02a8a4f0398b7b16217b0aeaff98d78cf37500c42"
+    uptime_kuma_dist_checksum: "sha256:015ebb4df74b72bd8c303bdc41b71e2de8bdc72862ddc2d65db69a92316df835"
+  tasks:
+    - name: Require a supported Debian-family guest
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.os_family == "Debian"
+          - ansible_facts.architecture in ["x86_64", "aarch64"]
+
+    - name: Install pinned-adapter prerequisites
+      ansible.builtin.apt:
+        name: [ca-certificates, curl, nodejs, npm, chromium]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Verify Node.js meets the application minimum
+      ansible.builtin.command: >-
+        node -e "process.exit(Number(process.versions.node.split('.')[0]) >= 20 ? 0 : 1)"
+      changed_when: false
+
+    - name: Create the Uptime Kuma service account
+      ansible.builtin.user:
+        name: uptime-kuma
+        system: true
+        home: /var/lib/uptime-kuma
+        create_home: true
+        shell: /usr/sbin/nologin
+
+    - name: Download the immutable Uptime Kuma source
+      ansible.builtin.get_url:
+        url: "https://github.com/louislam/uptime-kuma/archive/refs/tags/{{ uptime_kuma_version }}.tar.gz"
+        dest: "/var/cache/uptime-kuma-{{ uptime_kuma_version }}.tar.gz"
+        checksum: "{{ uptime_kuma_source_checksum }}"
+        mode: "0644"
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}"
+        state: directory
+        owner: uptime-kuma
+        group: uptime-kuma
+        mode: "0755"
+
+    - name: Extract the approved application source
+      ansible.builtin.unarchive:
+        src: "/var/cache/uptime-kuma-{{ uptime_kuma_version }}.tar.gz"
+        dest: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}"
+        remote_src: true
+        extra_opts: ["--strip-components=1"]
+        owner: uptime-kuma
+        group: uptime-kuma
+        creates: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/.homelab-source"
+
+    - name: Record the approved source version
+      ansible.builtin.copy:
+        dest: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/.homelab-source"
+        content: "{{ uptime_kuma_source_checksum }}\n"
+        owner: uptime-kuma
+        group: uptime-kuma
+        mode: "0644"
+
+    - name: Install locked production dependencies
+      ansible.builtin.command: npm ci --omit=dev --no-audit
+      args:
+        chdir: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}"
+        creates: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/node_modules/.package-lock.json"
+      become_user: uptime-kuma
+
+    - name: Download the immutable frontend archive
+      ansible.builtin.get_url:
+        url: "https://github.com/louislam/uptime-kuma/releases/download/{{ uptime_kuma_version }}/dist.tar.gz"
+        dest: "/var/cache/uptime-kuma-dist-{{ uptime_kuma_version }}.tar.gz"
+        checksum: "{{ uptime_kuma_dist_checksum }}"
+        mode: "0644"
+
+    - name: Extract the approved frontend
+      ansible.builtin.unarchive:
+        src: "/var/cache/uptime-kuma-dist-{{ uptime_kuma_version }}.tar.gz"
+        dest: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}"
+        remote_src: true
+        owner: uptime-kuma
+        group: uptime-kuma
+        creates: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/dist/index.html"
+
+    - name: Select the approved application release
+      ansible.builtin.file:
+        src: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}"
+        dest: /opt/uptime-kuma/current
+        state: link
+        owner: uptime-kuma
+        group: uptime-kuma
+        force: true
+      notify: Restart Uptime Kuma
+
+    - name: Install the Uptime Kuma service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/uptime-kuma.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Uptime Kuma
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=uptime-kuma
+          Group=uptime-kuma
+          WorkingDirectory=/opt/uptime-kuma/current
+          Environment=DATA_DIR=/var/lib/uptime-kuma
+          Environment=UPTIME_KUMA_PORT={{ uptime_kuma_port }}
+          ExecStart=/usr/bin/node /opt/uptime-kuma/current/server/server.js
+          Restart=on-failure
+          RestartSec=5
+          NoNewPrivileges=true
+          PrivateTmp=true
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart Uptime Kuma
+
+    - name: Enable and start Uptime Kuma
+      ansible.builtin.systemd_service:
+        name: uptime-kuma
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Flush service changes before health check
+      ansible.builtin.meta: flush_handlers
+
+    - name: Verify the Uptime Kuma health endpoint
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ uptime_kuma_port }}"
+        status_code: 200
+        return_content: false
+      register: uptime_kuma_health
+      retries: 12
+      delay: 5
+      until: uptime_kuma_health.status == 200
+      when: not ansible_check_mode
+
+  handlers:
+    - name: Restart Uptime Kuma
+      ansible.builtin.systemd_service:
+        name: uptime-kuma
+        state: restarted
+        daemon_reload: true

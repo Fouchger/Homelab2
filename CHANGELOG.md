@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- OpenTofu-derived, ignored Ansible runtime inventory with configuration/state drift refusal.
+- Locked Debian-family guest baseline covering hostname, timezone, prerequisite packages, the
+  dedicated automation account, authorized key, explicit sudo policy, and an ownership marker.
+- CLI, Task, and Infrastructure-menu operations for inventory preview, baseline check mode, and a
+  plan/confirm/apply baseline workflow with sanitized diagnostics.
+- Provenance-checked OpenTofu plans, a cross-process infrastructure mutation lock, and a guarded
+  OpenTofu apply option in the Infrastructure menu.
+- A curated Uptime Kuma 2.4.0 pilot using checksum-verified immutable source and frontend
+  artifacts, versioned application code, persistent data separation, dedicated-account execution,
+  health checks, and documented update, rollback, and rebuild procedures.
+
 ## [0.3.0] - 2026-07-16
 
 ### Added
