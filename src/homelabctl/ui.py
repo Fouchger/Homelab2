@@ -567,6 +567,15 @@ ACTION_SECTIONS: dict[str, tuple[str, str]] = {
 }
 
 
+SECTION_GUIDANCE: dict[str, str] = {
+    "setup": "Follow the steps in order. The Cloudflare token step is needed only when external domains are configured.",
+    "proxmox": "Prepare administrator SSH access before bootstrapping the API identity.",
+    "infrastructure": "Follow the steps in order: guest key, OpenTofu, inventory, baseline, then applications.",
+    "maintenance": "Review the update plan before applying it.",
+    "diagnostics": "Run readiness first, then inspect the effective non-secret settings if needed.",
+}
+
+
 class ActionPage(VerticalScroll):
     def __init__(self, section: str, **kwargs: object) -> None:
         super().__init__(**kwargs)
@@ -574,21 +583,26 @@ class ActionPage(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         title, subtitle = ACTION_SECTIONS[self.section]
-        operations = [
-            operation
-            for operation in OPERATIONS
-            if operation.visible and operation.section == self.section
-        ]
+        operations = sorted(
+            (
+                operation
+                for operation in OPERATIONS
+                if operation.visible and operation.section == self.section
+            ),
+            key=lambda operation: (operation.sequence, operation.identifier),
+        )
         yield Static(title, classes="page-title")
         yield Static(subtitle, classes="page-subtitle")
+        yield Static(SECTION_GUIDANCE[self.section], classes="section-guidance")
         if len(operations) > 3:
             yield Static(
                 f"{len(operations)} available actions · scroll to view every action",
                 classes="actions-hint",
             )
         with Grid(classes=f"actions-grid action-count-{len(operations)}"):
-            for operation in operations:
+            for step, operation in enumerate(operations, start=1):
                 with Vertical(classes="operation-card"):
+                    yield Static(f"STEP {step} OF {len(operations)}", classes="operation-step")
                     yield Static(operation.title, classes="operation-title")
                     yield Static(operation.description, classes="muted")
                     yield Button("Run", id=f"operation-{operation.identifier}")
@@ -723,7 +737,9 @@ class ControlPlaneApp(App[None]):
         grid-gutter: 1;
         height: auto;
     }
+    .section-guidance { height: auto; margin-bottom: 1; color: $hl-muted; }
     .actions-hint { height: 2; color: $hl-accent; }
+    .operation-step { height: 1; color: $hl-accent; text-style: bold; }
     .operation-title { height: 2; text-style: bold; color: $hl-text; }
     .operation-card Button { dock: bottom; width: 1fr; }
     .activity-heading { height: 4; margin-top: 1; align-vertical: middle; }

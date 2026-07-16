@@ -32,6 +32,10 @@ long-running command is active, the banner updates every second and the portable
 records a heartbeat every 15 seconds. Operation buttons remain disabled until completion, so a
 second action cannot accidentally replace or conceal a command that is still running.
 
+Each purpose page labels actions as numbered steps and sorts them by their declared workflow
+sequence. Follow them from Step 1 onward; pages with more actions than fit in the terminal show a
+scroll hint and retain every card in responsive rows.
+
 ## Input management
 
 The configuration editor loads the active YAML file or presents safe example values on first run.

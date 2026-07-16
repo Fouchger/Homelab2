@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file.
   operation-button lock for every control-panel action.
 - Responsive multi-row action grids with an explicit scroll hint, ensuring sections with more than
   three operations no longer clip later menu actions.
+- Explicit per-section menu sequence metadata, visible numbered steps, and workflow guidance so
+  users can follow prerequisite actions in the intended order.
 - Locked Debian-family guest baseline covering hostname, timezone, prerequisite packages, the
   dedicated automation account, authorized key, explicit sudo policy, and an ownership marker.
 - CLI, Task, and Infrastructure-menu operations for inventory preview, baseline check mode, and a

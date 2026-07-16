@@ -3,12 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import Mock
 
-from textual.widgets import Button, Input, TextArea
+from textual.widgets import Button, Input, Static, TextArea
 
 from homelabctl.configuration import load_config, save_config
 from homelabctl.models import HomelabConfig, default_config
-from homelabctl.operations import Operation, OperationResult
+from homelabctl.operations import OPERATIONS, Operation, OperationResult
 from homelabctl.ui import (
+    ACTION_SECTIONS,
     ActivityCopyDialog,
     ConfigurationPage,
     ConfirmDialog,
@@ -107,6 +108,64 @@ async def test_actions_are_grouped_in_meaningful_navigation_sections(tmp_path: P
         await pilot.press("7")
         assert app.query_one("#pages").current == "diagnostics"
         assert app.query_one("#operation-doctor", Button)
+
+
+def test_visible_operation_sequences_are_unique_within_each_menu_section() -> None:
+    for section in ACTION_SECTIONS:
+        sequences = [
+            operation.sequence
+            for operation in OPERATIONS
+            if operation.visible and operation.section == section
+        ]
+        assert sequences
+        assert len(sequences) == len(set(sequences))
+
+
+async def test_every_menu_renders_all_visible_actions_in_execution_order(tmp_path: Path) -> None:
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+    page_keys = {
+        "setup": "3",
+        "proxmox": "4",
+        "infrastructure": "5",
+        "maintenance": "6",
+        "diagnostics": "7",
+    }
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        for section, key in page_keys.items():
+            await pilot.press(key)
+            await pilot.pause()
+            expected = [
+                operation.identifier
+                for operation in sorted(
+                    (
+                        operation
+                        for operation in OPERATIONS
+                        if operation.visible and operation.section == section
+                    ),
+                    key=lambda operation: (operation.sequence, operation.identifier),
+                )
+            ]
+            buttons = app.query(f"#{section} .operation-card Button").results(Button)
+            assert [
+                button.id.removeprefix("operation-") for button in buttons if button.id
+            ] == expected
+            steps = app.query(f"#{section} .operation-step").results(Static)
+            assert [str(step.content) for step in steps] == [
+                f"STEP {number} OF {len(expected)}" for number in range(1, len(expected) + 1)
+            ]
+
+
+async def test_compact_menu_stacks_every_infrastructure_action(tmp_path: Path) -> None:
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.press("5")
+        await pilot.pause()
+        buttons = app.query("#infrastructure .operation-card Button").results(Button)
+        positions = [button.region.y for button in buttons]
+        assert positions == sorted(positions)
+        assert len(set(positions)) == len(positions)
 
 
 async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(

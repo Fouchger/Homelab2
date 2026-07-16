@@ -77,6 +77,7 @@ class Operation:
     plan: Callable[[Path], OperationResult] | None = None
     visible: bool = True
     secret_prompt: str | None = None
+    sequence: int = 0
 
 
 def validate_configuration(path: Path) -> OperationResult:
@@ -549,6 +550,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Validate configuration",
         "Check every site value and reject unknown or unsafe settings.",
         validate_configuration,
+        sequence=10,
     ),
     Operation(
         "ansible-setup",
@@ -558,6 +560,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="setup",
         destructive=True,
         plan=ansible_setup_plan,
+        sequence=20,
     ),
     Operation(
         "doctor",
@@ -565,6 +568,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Inspect the local toolchain, configuration, and encrypted provisioning credentials.",
         system_readiness,
         section="diagnostics",
+        sequence=10,
     ),
     Operation(
         "summary",
@@ -572,6 +576,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Display the exact non-secret values automation will consume.",
         configuration_summary,
         section="diagnostics",
+        sequence=20,
     ),
     Operation(
         "update",
@@ -581,6 +586,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="maintenance",
         destructive=True,
         plan=control_plane_update_plan,
+        sequence=10,
     ),
     Operation(
         "secrets-init",
@@ -589,6 +595,7 @@ OPERATIONS: tuple[Operation, ...] = (
         initialize_secret_store,
         destructive=True,
         plan=secret_store_plan,
+        sequence=30,
     ),
     Operation(
         "cloudflare-token",
@@ -598,6 +605,7 @@ OPERATIONS: tuple[Operation, ...] = (
         destructive=True,
         plan=cloudflare_token_plan,
         secret_prompt="Paste the scoped Cloudflare API token. The value stays masked and is sent directly to SOPS.",
+        sequence=40,
     ),
     Operation(
         "proxmox-ssh",
@@ -607,6 +615,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="proxmox",
         destructive=True,
         plan=proxmox_ssh_plan,
+        sequence=10,
     ),
     Operation(
         "proxmox-bootstrap",
@@ -616,6 +625,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="proxmox",
         destructive=True,
         plan=proxmox_identity_plan,
+        sequence=20,
     ),
     Operation(
         "proxmox-token-recover",
@@ -625,6 +635,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="proxmox",
         destructive=True,
         visible=False,
+        sequence=30,
     ),
     Operation(
         "automation-ssh",
@@ -634,6 +645,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="infrastructure",
         destructive=True,
         plan=automation_ssh_plan,
+        sequence=10,
     ),
     Operation(
         "tofu-check",
@@ -641,6 +653,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Initialize locked providers, validate typed inputs, and create a non-destructive plan.",
         check_tofu_foundation,
         section="infrastructure",
+        sequence=20,
     ),
     Operation(
         "tofu-apply",
@@ -650,6 +663,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="infrastructure",
         destructive=True,
         plan=check_tofu_foundation,
+        sequence=30,
     ),
     Operation(
         "ansible-inventory",
@@ -657,6 +671,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Derive a secret-free runtime inventory from the accepted OpenTofu state.",
         preview_guest_inventory,
         section="infrastructure",
+        sequence=40,
     ),
     Operation(
         "ansible-check",
@@ -664,6 +679,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Run the Debian-family baseline in Ansible check mode without changing guests.",
         check_guest_baseline,
         section="infrastructure",
+        sequence=50,
     ),
     Operation(
         "ansible-apply",
@@ -673,6 +689,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="infrastructure",
         destructive=True,
         plan=check_guest_baseline,
+        sequence=60,
     ),
     Operation(
         "applications-check",
@@ -680,6 +697,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Verify pinned snapshots and preview in-guest application changes.",
         preview_curated_applications,
         section="infrastructure",
+        sequence=70,
     ),
     Operation(
         "applications-apply",
@@ -689,6 +707,7 @@ OPERATIONS: tuple[Operation, ...] = (
         section="infrastructure",
         destructive=True,
         plan=preview_curated_applications,
+        sequence=80,
     ),
 )
 
