@@ -152,3 +152,27 @@ def test_menu_mode_streams_baseline_output(tmp_path: Path, monkeypatch: pytest.M
     assert lines == ["TASK [Gathering Facts]", "monitoring : ok=7 changed=0"]
     assert result.changed is False
     assert "TASK [Gathering Facts]" in result.diagnostic_log.read_text(encoding="utf-8")
+
+
+def test_baseline_sets_a_short_ssh_connection_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _site(tmp_path)
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> CompletedProcess[str]:
+        commands.append(command)
+        if "output" in command:
+            return CompletedProcess(
+                command,
+                0,
+                json.dumps(
+                    {"monitoring": {"hostname": "monitoring", "management_address": "192.168.10.20"}}
+                ),
+                "",
+            )
+        return CompletedProcess(command, 0, "monitoring : ok=7 changed=0\n", "")
+
+    monkeypatch.setattr("homelabctl.ansible.subprocess.run", run)
+    run_baseline(path, check=True, tofu_executable="tofu", ansible_executable="ansible-playbook")
+    assert commands[-1][commands[-1].index("--timeout") :] == ["--timeout", "30", "--check"]

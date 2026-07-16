@@ -83,10 +83,14 @@ def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
     try:
         if live_progress_enabled():
             if check:
-                completed = _run_ansible_with_live_output(command, root, diagnostic)
+                completed = _run_ansible_with_live_output(
+                    command, root, diagnostic, timeout_seconds=900
+                )
             else:
                 with mutation_lock(root, f"Application apply: {key}"):
-                    completed = _run_ansible_with_live_output(command, root, diagnostic)
+                    completed = _run_ansible_with_live_output(
+                        command, root, diagnostic, timeout_seconds=900
+                    )
         elif check:
             completed = subprocess.run(
                 command, cwd=root, capture_output=True, text=True, encoding="utf-8"

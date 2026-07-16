@@ -6,9 +6,12 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
 
 from homelabctl.configuration import find_project_root, load_config
 from homelabctl.guard import OperationLockedError, mutation_lock
@@ -119,8 +122,10 @@ def generate_inventory(
     return inventory_path, tuple(summary)
 
 
-def _run_ansible_with_live_output(command: list[str], root: Path, diagnostic: Path) -> subprocess.CompletedProcess[str]:
-    """Run Ansible while immediately showing and saving its normal output."""
+def _run_ansible_with_live_output(
+    command: list[str], root: Path, diagnostic: Path, *, timeout_seconds: int = 300
+) -> subprocess.CompletedProcess[str]:
+    """Run Ansible with live output and a firm operation deadline."""
 
     diagnostic.parent.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
@@ -139,7 +144,36 @@ def _run_ansible_with_live_output(command: list[str], root: Path, diagnostic: Pa
             env=environment,
         ) as process, diagnostic.open("w", encoding="utf-8", newline="\n") as log:
             assert process.stdout is not None
-            for raw_line in process.stdout:
+            output_queue: Queue[str | None] = Queue()
+
+            def read_output() -> None:
+                for raw_line in process.stdout:
+                    output_queue.put(raw_line)
+                output_queue.put(None)
+
+            reader = Thread(target=read_output, name="homelab-ansible-output", daemon=True)
+            reader.start()
+            deadline = time.monotonic() + timeout_seconds
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                    raise AnsibleError(
+                        "Ansible operation stopped after "
+                        f"{timeout_seconds} seconds. Review {diagnostic}; the last displayed "
+                        "task identifies where it stopped."
+                    )
+                try:
+                    raw_line = output_queue.get(timeout=min(remaining, 1))
+                except Empty:
+                    continue
+                if raw_line is None:
+                    break
                 line = raw_line.rstrip("\r\n")
                 output.append(line)
                 log.write(line + "\n")
@@ -172,6 +206,8 @@ def run_baseline(
         str(inventory),
         str(root / "ansible" / "baseline.yml"),
         "--diff",
+        "--timeout",
+        "30",
     ]
     if check:
         command.append("--check")
