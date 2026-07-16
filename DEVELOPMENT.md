@@ -10,7 +10,7 @@ acceptance criteria, and implementation discussion for each active workstream.
 | `v0.1.0` | Phase 1: control-plane foundation | Complete |
 | `v0.2.0` | Phase 2: secure provisioning foundation | Complete |
 | `v0.3.0` | Phase 3: Proxmox and Cloudflare provisioning | Complete |
-| `v0.4.0` | Phase 4: system configuration and guarded operations | In progress |
+| `v0.4.0` | Phase 4: system configuration and guarded operations | Complete |
 
 ## Phase 1 acceptance
 
@@ -49,37 +49,39 @@ Cloudflare domains, the reconciled `homelab@pve!control-plane` identity, success
 authentication, the OpenTofu foundation plan, and an up-to-date control plane. Issues #4, #5, and
 #10 were closed with their detailed completion evidence.
 
-## Outstanding work
+## Deferred follow-up work
 
 | Priority | Workstream | Tracking | Depends on |
 |---|---|---|---|
 | 1 | CLI and clean-installer acceptance coverage | [#3](https://github.com/Fouchger/Homelab2/issues/3) | Phase 1 |
 | 2 | Offline age identity backup and recovery verification | [#11](https://github.com/Fouchger/Homelab2/issues/11) | Phase 2 operations |
 | 3 | Trusted Proxmox API TLS and certificate verification | [#12](https://github.com/Fouchger/Homelab2/issues/12) | Phase 2 hardening |
-| 4 | Ansible inventory and baseline configuration | [#8](https://github.com/Fouchger/Homelab2/issues/8) | Phase 3 |
-| 5 | Guarded plan and apply operations | [#9](https://github.com/Fouchger/Homelab2/issues/9) | #8 |
-| 6 | Curated Community Scripts application catalog | [#14](https://github.com/Fouchger/Homelab2/issues/14) | Phase 3, #8 |
+| 4 | Curated application recovery on a disposable workload | [#15](https://github.com/Fouchger/Homelab2/issues/15) | Phase 4 pilot |
 
-Issues #6 and #7 completed the Phase 3 provisioning workstreams. Ansible follows the accepted
-Proxmox outputs, and guarded control-panel apply operations follow the tested CLI saved-plan
-workflow so the interface exposes only operations that are already safe and verified.
-Issues #11 and #12 preserve the explicit operator backup and TLS-hardening work without reopening
-the completed software foundation. Issue #14 follows the declarative resource and Ansible
-boundaries: Community Scripts may accelerate reviewed in-guest application installation, but its
-host-side scripts never share ownership of an OpenTofu-managed guest.
+Issues #6 and #7 completed the Phase 3 provisioning workstreams. Issues #8, #9, and #14 completed
+the Phase 4 inventory, guarded-operation, and curated application-pilot workstreams. Issues #11
+and #12 preserve the explicit operator backup and TLS-hardening work without reopening completed
+releases. Issue #15 retains the deliberately deferred disposable recovery acceptance: Community
+Scripts remain an upstream reference only and never share ownership of an OpenTofu-managed guest.
 
-## Phase 4 implementation status
+## Phase 4 acceptance
 
-The unreleased implementation now derives ignored Ansible inventory from accepted OpenTofu
-outputs, applies a minimal Debian-family baseline through check/confirm/apply boundaries, and
-serializes infrastructure mutations across CLI and control-panel processes. OpenTofu menu apply
-uses a newly created plan with configuration and plan fingerprints.
+Phase 4 was accepted on 2026-07-17 against the production control plane, Proxmox host, and an
+OpenTofu-owned Debian 13 monitoring container. The release includes:
 
-The curated application pilot targets Uptime Kuma 2.4.0 inside one existing OpenTofu-owned guest.
-It uses the dedicated automation account, checksum-verifies immutable source and frontend
-artifacts, separates versioned code from persistent data, and requires an HTTP health check.
-Production acceptance still requires disposable install, clean second apply, rollback, destroy,
-rebuild, and data-recovery verification before issues #8, #9, and #14 or `v0.4.0` are complete.
+- ignored Ansible inventory derived only from accepted OpenTofu outputs, with state-drift refusal;
+- a guarded, serial Debian-family baseline that creates the dedicated automation account, SSH
+  policy, explicit sudo policy, package-access limits, and useful live diagnostics;
+- sequenced control-panel operations with plan, confirmation, activity streaming, mutation locks,
+  and matching unattended commands;
+- a checksum-pinned Uptime Kuma 2.4.0 adapter with isolated persistent data, dedicated-account
+  dependency installation, systemd service management, and a health check; and
+- menu-only operation acceptance, including repeat apply, container restart recovery, notification
+  testing, and a least-privilege VLAN 30 to VLAN 20 monitoring firewall path for Proxmox HTTPS.
+
+The Uptime Kuma pilot is healthy at the accepted monitoring endpoint and confirms Proxmox HTTPS
+with a 200 response. Disposable rebuild, update/rollback, and persistent-data recovery testing are
+explicitly deferred to issue #15 rather than being represented as completed production acceptance.
 
 ## Phase 3 acceptance
 

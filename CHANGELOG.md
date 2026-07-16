@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## [0.4.0] - 2026-07-17
+
 ### Added
 
 - OpenTofu-derived, ignored Ansible runtime inventory with configuration/state drift refusal.
@@ -26,6 +28,21 @@ All notable changes to this project are documented in this file.
 - A curated Uptime Kuma 2.4.0 pilot using checksum-verified immutable source and frontend
   artifacts, versioned application code, persistent data separation, dedicated-account execution,
   health checks, and documented update, rollback, and rebuild procedures.
+
+### Fixed
+
+- Menu-launched Ansible operations stream real output, avoid hidden first-connection prompts, and
+  stop bounded baseline or application operations with actionable diagnostics.
+- Debian package acquisition uses bounded connection, lock, and cache-refresh limits.
+- Uptime Kuma preview no longer attempts stateful extraction, the adapter avoids the Ansible ACL
+  transition issue, and unnecessary Chromium installation was removed.
+
+### Verified
+
+- Production acceptance of inventory, baseline, guarded applies, Uptime Kuma install, idempotent
+  application re-apply, service restart, health checks, alert notifications, and Proxmox HTTPS
+  monitoring across the intentionally narrow VLAN firewall path.
+- Formatting, linting, and 101 automated tests.
 
 ## [0.3.0] - 2026-07-16
 
@@ -144,3 +161,4 @@ All notable changes to this project are documented in this file.
 [0.1.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.1.0
 [0.2.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.2.0
 [0.3.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.3.0
+[0.4.0]: https://github.com/Fouchger/Homelab2/releases/tag/v0.4.0

@@ -6,9 +6,10 @@ Proxmox LXC.
 
 ## Release status
 
-Phases 1 through 3 are complete. `v0.3.0` adds accepted Proxmox LXC and multi-domain Cloudflare DNS
-provisioning to the control-plane and secure-runtime foundations from `v0.1.0` and `v0.2.0`. The
-completed foundation provides:
+Phases 1 through 4 are complete. `v0.4.0` adds accepted system configuration and guarded
+operations to the Proxmox LXC and multi-domain Cloudflare DNS provisioning from `v0.3.0`.
+Together with the secure-runtime foundations from `v0.1.0` and `v0.2.0`, the completed control
+plane provides:
 
 - a guided site configuration editor;
 - strict validation and rejection of unknown settings;
@@ -20,12 +21,13 @@ completed foundation provides:
 - both interactive and unattended command-line operation.
 - deterministic unprivileged Debian LXC lifecycle management on the configured bridge and VLAN;
 - explicit multi-zone Cloudflare A, AAAA, and CNAME ownership;
-- credential-aware application of only an explicitly reviewed saved OpenTofu plan.
+- credential-aware application of only an explicitly reviewed saved OpenTofu plan;
+- OpenTofu-derived Ansible inventory, a Debian-family guest baseline, and guarded confirmation
+  workflows; and
+- a checksum-pinned Uptime Kuma pilot with dedicated-account execution, health checks, and
+  repeatable application apply operations.
 
-Phase 4 is in progress: the unreleased tree adds OpenTofu-derived Ansible inventory, Debian-family
-baseline configuration, guarded OpenTofu and Ansible apply operations, and a checksum-pinned
-Uptime Kuma application pilot. The menu only shows operations that are actually implemented. See
-[`DEVELOPMENT.md`](DEVELOPMENT.md) for the sequenced roadmap and outstanding GitHub issues, and
+See [`DEVELOPMENT.md`](DEVELOPMENT.md) for acceptance evidence and deferred follow-up work, and
 [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Quick start
