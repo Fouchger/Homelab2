@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import Mock
 
-from textual.widgets import Button, Input, Static, TextArea
+from textual.widgets import Button, Input, RichLog, Static, TextArea
 
 from homelabctl.configuration import load_config, save_config
 from homelabctl.models import HomelabConfig, default_config
@@ -150,9 +150,20 @@ async def test_every_menu_renders_all_visible_actions_in_execution_order(tmp_pat
             assert [
                 button.id.removeprefix("operation-") for button in buttons if button.id
             ] == expected
-            steps = app.query(f"#{section} .operation-step").results(Static)
-            assert [str(step.content) for step in steps] == [
-                f"STEP {number} OF {len(expected)}" for number in range(1, len(expected) + 1)
+            titles = app.query(f"#{section} .operation-title").results(Static)
+            expected_titles = [
+                operation.title
+                for operation in sorted(
+                    (
+                        operation
+                        for operation in OPERATIONS
+                        if operation.visible and operation.section == section
+                    ),
+                    key=lambda operation: (operation.sequence, operation.identifier),
+                )
+            ]
+            assert [str(title.content) for title in titles] == [
+                f"{number}. {title}" for number, title in enumerate(expected_titles, start=1)
             ]
 
 
@@ -264,9 +275,9 @@ async def test_masked_cloudflare_token_is_passed_directly_to_secret_operation(
     async with app.run_test(size=(140, 48)) as pilot:
         await pilot.press("3")
         await pilot.click("#operation-secret-test")
-        await pilot.pause(0.05)
+        await pilot.pause(0.2)
         await pilot.click("#confirm-continue")
-        await pilot.pause(0.05)
+        await pilot.pause(0.2)
         assert isinstance(app.screen, SecretInputDialog)
         secret_input = app.screen.query_one("#secret-input-value", Input)
         assert secret_input.password
@@ -294,7 +305,9 @@ async def test_opentofu_operation_is_reachable_in_very_wide_layout(
         assert app.query_one("#operation-applications-check", Button)
         last_action = app.query_one("#operation-applications-apply", Button)
         assert last_action.region.y > first_action.region.y
-        assert app.query_one("#infrastructure .actions-grid").virtual_size.height >= 27
+        assert app.query_one("#infrastructure .actions-grid").virtual_size.height >= 15
+        activity_log = app.query_one("#activity-log-infrastructure", RichLog)
+        assert activity_log.region.x > first_action.region.x
         await pilot.click("#operation-tofu-check")
         await pilot.pause()
 

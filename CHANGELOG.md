@@ -15,6 +15,8 @@ All notable changes to this project are documented in this file.
   three operations no longer clip later menu actions.
 - Explicit per-section menu sequence metadata, visible numbered steps, and workflow guidance so
   users can follow prerequisite actions in the intended order.
+- Compact two-pane purpose pages that keep ordered actions on the left and live session activity
+  visible on the right, reducing vertical scroll on standard terminal sizes.
 - Locked Debian-family guest baseline covering hostname, timezone, prerequisite packages, the
   dedicated automation account, authorized key, explicit sudo policy, and an ownership marker.
 - CLI, Task, and Infrastructure-menu operations for inventory preview, baseline check mode, and a

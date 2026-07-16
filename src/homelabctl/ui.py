@@ -576,7 +576,7 @@ SECTION_GUIDANCE: dict[str, str] = {
 }
 
 
-class ActionPage(VerticalScroll):
+class ActionPage(Vertical):
     def __init__(self, section: str, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self.section = section
@@ -594,29 +594,28 @@ class ActionPage(VerticalScroll):
         yield Static(title, classes="page-title")
         yield Static(subtitle, classes="page-subtitle")
         yield Static(SECTION_GUIDANCE[self.section], classes="section-guidance")
-        if len(operations) > 3:
-            yield Static(
-                f"{len(operations)} available actions · scroll to view every action",
-                classes="actions-hint",
-            )
-        with Grid(classes=f"actions-grid action-count-{len(operations)}"):
-            for step, operation in enumerate(operations, start=1):
-                with Vertical(classes="operation-card"):
-                    yield Static(f"STEP {step} OF {len(operations)}", classes="operation-step")
-                    yield Static(operation.title, classes="operation-title")
-                    yield Static(operation.description, classes="muted")
-                    yield Button("Run", id=f"operation-{operation.identifier}")
-        yield Static("", classes="operation-progress")
-        with Horizontal(classes="activity-heading"):
-            yield Static("Session activity", classes="section-title")
-            yield Button("View / copy activity", id=f"copy-activity-{self.section}")
-        yield RichLog(
-            id=f"activity-log-{self.section}",
-            classes="activity-log",
-            markup=True,
-            wrap=True,
-            highlight=True,
-        )
+        with Horizontal(classes="action-workspace"):
+            with VerticalScroll(classes="action-list"):
+                with Grid(classes=f"actions-grid action-count-{len(operations)}"):
+                    for step, operation in enumerate(operations, start=1):
+                        with Horizontal(classes="operation-card"):
+                            yield Static(
+                                f"{step}. {operation.title}",
+                                classes="operation-title",
+                            )
+                            yield Button("Run", id=f"operation-{operation.identifier}")
+                yield Static("", classes="operation-progress")
+            with Vertical(classes="activity-panel"):
+                with Horizontal(classes="activity-heading"):
+                    yield Static("Session activity", classes="section-title")
+                    yield Button("View / copy", id=f"copy-activity-{self.section}")
+                yield RichLog(
+                    id=f"activity-log-{self.section}",
+                    classes="activity-log",
+                    markup=True,
+                    wrap=True,
+                    highlight=True,
+                )
 
 
 class HelpPage(VerticalScroll):
@@ -730,19 +729,21 @@ class ControlPlaneApp(App[None]):
     .feedback-success { color: $hl-success; }
     .form-actions { height: 4; align-horizontal: right; }
     .form-actions Button { margin-left: 1; }
+    .action-workspace { height: 1fr; margin-top: 1; }
+    .action-list { width: 1fr; height: 1fr; padding-right: 1; }
+    .activity-panel { width: 42%; min-width: 42; height: 1fr; padding-left: 1; border-left: solid $hl-border; }
     .actions-grid {
-        grid-size: 3;
-        grid-columns: 1fr 1fr 1fr;
-        grid-rows: 9;
+        grid-size: 2;
+        grid-columns: 1fr 1fr;
+        grid-rows: 3;
         grid-gutter: 1;
         height: auto;
     }
     .section-guidance { height: auto; margin-bottom: 1; color: $hl-muted; }
-    .actions-hint { height: 2; color: $hl-accent; }
-    .operation-step { height: 1; color: $hl-accent; text-style: bold; }
-    .operation-title { height: 2; text-style: bold; color: $hl-text; }
-    .operation-card Button { dock: bottom; width: 1fr; }
-    .activity-heading { height: 4; margin-top: 1; align-vertical: middle; }
+    .operation-card { height: 3; padding: 0 1; align-vertical: middle; }
+    .operation-title { width: 1fr; height: 1; text-style: bold; color: $hl-text; }
+    .operation-card Button { width: 10; height: 3; }
+    .activity-heading { height: 3; align-vertical: middle; }
     .operation-progress {
         display: none;
         height: 3;
@@ -753,8 +754,8 @@ class ControlPlaneApp(App[None]):
         color: $text;
     }
     .activity-heading .section-title { width: 1fr; margin-top: 0; }
-    .activity-heading Button { width: 20; }
-    .activity-log { height: 16; min-height: 9; background: #050b13; border: solid $hl-border; padding: 1; }
+    .activity-heading Button { width: 14; }
+    .activity-log { height: 1fr; min-height: 9; background: #050b13; border: solid $hl-border; padding: 1; }
     ConfirmDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     SecretInputDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     CopyCommandDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
@@ -791,13 +792,16 @@ class ControlPlaneApp(App[None]):
     Screen.-compact ConfigurationPage,
     Screen.-compact ActionPage,
     Screen.-compact HelpPage { padding: 1 2; }
+    Screen.-compact .action-workspace { layout: vertical; }
+    Screen.-compact .action-list { width: 1fr; height: 1fr; padding-right: 0; }
+    Screen.-compact .activity-panel { width: 1fr; min-width: 0; height: 16; padding-left: 0; margin-top: 1; border-left: none; }
     Screen.-compact .actions-grid { grid-size: 1; grid-columns: 1fr; }
     Screen.-wide #sidebar { width: 22; }
     Screen.-wide #config-path { display: none; }
     Screen.-wide .actions-grid { grid-size: 2; grid-columns: 1fr 1fr; }
     Screen.-very-wide #sidebar { width: 28; }
     Screen.-very-wide #config-path { display: block; }
-    Screen.-very-wide .actions-grid { grid-size: 3; grid-columns: 1fr 1fr 1fr; }
+    Screen.-very-wide .actions-grid { grid-size: 2; grid-columns: 1fr 1fr; }
     """
 
     def __init__(self, config_path: Path, *, initial_page: str = "overview") -> None:

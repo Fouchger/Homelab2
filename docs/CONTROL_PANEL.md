@@ -36,6 +36,10 @@ Each purpose page labels actions as numbered steps and sorts them by their decla
 sequence. Follow them from Step 1 onward; pages with more actions than fit in the terminal show a
 scroll hint and retain every card in responsive rows.
 
+On standard and wide terminals, actions occupy the left workspace in compact rows while Session
+activity stays visible in a persistent panel on the right. Narrow terminals stack the activity
+panel beneath the action list so actions remain usable without horizontal clipping.
+
 ## Input management
 
 The configuration editor loads the active YAML file or presents safe example values on first run.
