@@ -19,6 +19,19 @@ Generated non-secret site inputs are stored under ignored `.cache/tofu/`. Detail
 command output is appended to `logs/opentofu.log`. `task tofu:check` and `homelabctl tofu check`
 provide the same operation for unattended troubleshooting.
 
+For Phase 3 live acceptance, review the saved plan and apply that exact artifact through the
+credential-aware wrapper:
+
+```bash
+task tofu:apply CONFIG=config/sites/local.yaml
+```
+
+The wrapper decrypts provider credentials in memory, supplies them only to the OpenTofu child
+process, retains state locking, and refuses to calculate or apply a new plan. Do not invoke raw
+`tofu apply` for a Cloudflare plan: the Cloudflare credential is intentionally not stored in the
+plan file and would be absent from that process. If an apply partially succeeds, create and review
+a new plan before retrying; never reuse the old plan.
+
 ## Provider reproducibility
 
 The project constrains OpenTofu to the supported major version and pins `bpg/proxmox` and
@@ -29,8 +42,8 @@ together.
 
 The saved plan can contain public record content, resource identifiers, and infrastructure
 metadata even though provider tokens are excluded. Treat it and state as sensitive operational
-artifacts. Phase 3 remains plan-only in the control panel; a guarded apply workflow is tracked by
-issue #9.
+artifacts. Phase 3 remains plan-only in the control panel; the CLI wrapper exists for explicit
+saved-plan acceptance, while the guarded interactive apply workflow is tracked by issue #9.
 
 ## State strategy
 

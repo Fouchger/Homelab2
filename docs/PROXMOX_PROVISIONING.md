@@ -106,6 +106,8 @@ Review the saved plan for the exact VM ID, template, storage, bridge/VLAN, addre
 unprivileged mode, and resource count. The control panel intentionally has no apply button in
 Phase 3. Live acceptance should use disposable IDs and addresses and prove create, in-place update,
 and destroy from an explicitly reviewed saved plan before issue #6 is closed.
+Apply only that saved plan through `task tofu:apply`, which supplies runtime provider credentials
+without storing them in the plan or configuration.
 
 ## Community Scripts boundary
 

@@ -26,6 +26,12 @@ class TofuCheckResult:
     diagnostic_log: Path
 
 
+@dataclass(frozen=True, slots=True)
+class TofuApplyResult:
+    plan_path: Path
+    diagnostic_log: Path
+
+
 def infrastructure_directory(start: Path | None = None) -> Path:
     return find_project_root(start) / "infrastructure"
 
@@ -126,6 +132,7 @@ def _run(
     environment: dict[str, str],
     diagnostic: DiagnosticLog,
     accepted_codes: tuple[int, ...] = (0,),
+    timeout: int = 180,
 ) -> None:
     diagnostic.write("tofu.execute", " ".join(command))
     try:
@@ -137,7 +144,7 @@ def _run(
             capture_output=True,
             text=True,
             encoding="utf-8",
-            timeout=180,
+            timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         diagnostic.write("tofu.exception", f"{type(exc).__name__}: {exc}")
@@ -161,6 +168,19 @@ def _run(
         )
 
 
+def _runtime_environment(
+    root: Path, config: HomelabConfig, secrets_path: str | Path | None
+) -> dict[str, str]:
+    bundle = load_secrets(resolve_secrets_path(secrets_path), config=config)
+    environment = os.environ.copy()
+    environment["TF_IN_AUTOMATION"] = "1"
+    environment["TF_INPUT"] = "0"
+    environment["TF_DATA_DIR"] = str(root / ".cache" / "tofu" / "data")
+    environment.update(bundle.provider_environment())
+    environment["TF_VAR_proxmox_api_token"] = bundle.proxmox.api_token.get_secret_value()
+    return environment
+
+
 def check_foundation(
     config_path: str | Path,
     secrets_path: str | Path | None = None,
@@ -173,7 +193,6 @@ def check_foundation(
     if not tofu:
         raise TofuError("OpenTofu is not installed or is not on PATH")
     config = load_config(config_path)
-    bundle = load_secrets(resolve_secrets_path(secrets_path), config=config)
     root = find_project_root(Path(config_path).resolve().parent)
     working = infrastructure_directory(root)
     variables_path = write_tofu_variables(
@@ -182,12 +201,7 @@ def check_foundation(
     plan_path = root / "artifacts" / "foundation.tfplan"
     plan_path.parent.mkdir(parents=True, exist_ok=True)
     diagnostic = DiagnosticLog(root / "logs" / "opentofu.log")
-    environment = os.environ.copy()
-    environment["TF_IN_AUTOMATION"] = "1"
-    environment["TF_INPUT"] = "0"
-    environment["TF_DATA_DIR"] = str(root / ".cache" / "tofu" / "data")
-    environment.update(bundle.provider_environment())
-    environment["TF_VAR_proxmox_api_token"] = bundle.proxmox.api_token.get_secret_value()
+    environment = _runtime_environment(root, config, secrets_path)
 
     diagnostic.write("tofu.check.start", f"working_directory={working}")
     _run(
@@ -230,3 +244,42 @@ def check_foundation(
     )
     diagnostic.write("tofu.check.complete", "format, initialization, validation, and plan passed")
     return TofuCheckResult(variables_path, plan_path, diagnostic.path)
+
+
+def apply_saved_plan(
+    config_path: str | Path,
+    secrets_path: str | Path | None = None,
+    *,
+    tofu_executable: str | None = None,
+) -> TofuApplyResult:
+    """Apply only the existing saved plan with decrypted runtime provider credentials."""
+
+    tofu = tofu_executable or shutil.which("tofu")
+    if not tofu:
+        raise TofuError("OpenTofu is not installed or is not on PATH")
+    config = load_config(config_path)
+    root = find_project_root(Path(config_path).resolve().parent)
+    working = infrastructure_directory(root)
+    plan_path = root / "artifacts" / "foundation.tfplan"
+    if not plan_path.is_file():
+        raise TofuError(f"Saved OpenTofu plan not found: {plan_path}. Run `task tofu:check` first.")
+
+    diagnostic = DiagnosticLog(root / "logs" / "opentofu.log")
+    environment = _runtime_environment(root, config, secrets_path)
+    diagnostic.write("tofu.apply.start", f"saved_plan={plan_path}")
+    _run(
+        [
+            tofu,
+            "apply",
+            "-lock=true",
+            "-lock-timeout=30s",
+            "-input=false",
+            str(plan_path),
+        ],
+        cwd=working,
+        environment=environment,
+        diagnostic=diagnostic,
+        timeout=3600,
+    )
+    diagnostic.write("tofu.apply.complete", "reviewed saved plan applied")
+    return TofuApplyResult(plan_path, diagnostic.path)

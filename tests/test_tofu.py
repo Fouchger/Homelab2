@@ -10,7 +10,13 @@ from homelabctl.configuration import save_config
 from homelabctl.models import HomelabConfig, default_config
 from homelabctl.operations import check_tofu_foundation
 from homelabctl.secrets import ProviderSecret, SecretBundle
-from homelabctl.tofu import TofuCheckResult, TofuError, check_foundation, tofu_variables
+from homelabctl.tofu import (
+    TofuCheckResult,
+    TofuError,
+    apply_saved_plan,
+    check_foundation,
+    tofu_variables,
+)
 
 
 def test_validated_config_maps_to_typed_non_secret_inputs() -> None:
@@ -179,3 +185,67 @@ def test_foundation_check_redacts_cloudflare_token(tmp_path: Path, monkeypatch) 
     assert diagnostics.count("[REDACTED]") >= 2
     assert run.call_args.kwargs["env"]["CLOUDFLARE_API_TOKEN"] == cloudflare_token
     assert load.call_args.kwargs["config"].cloudflare.records
+
+
+def test_saved_plan_apply_supplies_runtime_credentials_and_exact_plan(
+    tmp_path: Path, monkeypatch
+) -> None:
+    data = default_config().model_dump(mode="json")
+    data["cloudflare"] = {
+        "domains": ["example.com"],
+        "records": [
+            {
+                "zone": "example.com",
+                "name": "acceptance",
+                "type": "CNAME",
+                "content": "target.example.net",
+            }
+        ],
+    }
+    config_path = save_config(HomelabConfig.model_validate(data), tmp_path / "site.yaml")
+    plan_path = tmp_path / "artifacts" / "foundation.tfplan"
+    plan_path.parent.mkdir()
+    plan_path.write_bytes(b"saved-plan")
+    (tmp_path / "infrastructure").mkdir()
+    proxmox_token = "proxmox-runtime-secret"
+    cloudflare_token = "cloudflare-runtime-secret"
+    bundle = SecretBundle(
+        proxmox=ProviderSecret(api_token=proxmox_token),
+        cloudflare=ProviderSecret(api_token=cloudflare_token),
+    )
+    run = Mock(
+        return_value=subprocess.CompletedProcess(
+            args=["tofu"],
+            returncode=0,
+            stdout=f"applied with {proxmox_token} and {cloudflare_token}",
+            stderr="",
+        )
+    )
+    monkeypatch.setattr("homelabctl.tofu.load_secrets", Mock(return_value=bundle))
+    monkeypatch.setattr("homelabctl.tofu.subprocess.run", run)
+
+    result = apply_saved_plan(config_path, tofu_executable="tofu")
+
+    assert result.plan_path == plan_path
+    assert run.call_args.args[0] == [
+        "tofu",
+        "apply",
+        "-lock=true",
+        "-lock-timeout=30s",
+        "-input=false",
+        str(plan_path),
+    ]
+    assert run.call_args.kwargs["env"]["CLOUDFLARE_API_TOKEN"] == cloudflare_token
+    assert run.call_args.kwargs["env"]["TF_VAR_proxmox_api_token"] == proxmox_token
+    diagnostics = result.diagnostic_log.read_text(encoding="utf-8")
+    assert proxmox_token not in diagnostics
+    assert cloudflare_token not in diagnostics
+    assert diagnostics.count("[REDACTED]") >= 2
+
+
+def test_saved_plan_apply_requires_existing_plan(tmp_path: Path, monkeypatch) -> None:
+    config_path = save_config(default_config(), tmp_path / "site.yaml")
+    monkeypatch.setattr("homelabctl.tofu.load_secrets", Mock())
+
+    with pytest.raises(TofuError, match="Run `task tofu:check` first"):
+        apply_saved_plan(config_path, tofu_executable="tofu")

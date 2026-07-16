@@ -84,3 +84,5 @@ task tofu:check
 Review every zone, fully qualified name, type, content, TTL, proxy flag, addition, and deletion.
 Phase 3 is plan-only in the control panel. Disposable acceptance should prove create, update, and
 destroy in every configured zone from an explicitly reviewed saved plan before issue #7 is closed.
+Apply only that saved plan through `task tofu:apply`; this wrapper supplies the in-memory
+Cloudflare credential that a raw `tofu apply` process does not receive.

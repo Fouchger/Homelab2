@@ -37,7 +37,7 @@ from homelabctl.secrets import (
     resolve_secrets_path,
     write_sops_policy,
 )
-from homelabctl.tofu import TofuError, check_foundation
+from homelabctl.tofu import TofuError, apply_saved_plan, check_foundation
 from homelabctl.updater import UpdateError, apply_update, prepare_update
 
 
@@ -157,6 +157,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_config_argument(tofu_check)
     _add_secrets_argument(tofu_check)
+    tofu_apply = tofu_commands.add_parser(
+        "apply", help="apply only the existing reviewed saved plan with runtime credentials"
+    )
+    _add_config_argument(tofu_apply)
+    _add_secrets_argument(tofu_apply)
 
     infrastructure = subcommands.add_parser(
         "infrastructure", help="prepare and validate infrastructure prerequisites"
@@ -282,6 +287,13 @@ def _tofu_check(args: argparse.Namespace, console: Console) -> int:
     return 0
 
 
+def _tofu_apply(args: argparse.Namespace, console: Console) -> int:
+    result = apply_saved_plan(resolve_config_path(args.config), args.secrets)
+    console.print(f"[green]Reviewed OpenTofu plan applied:[/] {result.plan_path}")
+    console.print(f"[cyan]Diagnostic log:[/] {result.diagnostic_log}")
+    return 0
+
+
 def _infrastructure_ssh_key(config_path: Path, console: Console) -> int:
     result = prepare_automation_ssh(config_path)
     style = "green" if result.succeeded else "red"
@@ -337,6 +349,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _proxmox_bootstrap(args, console)
         if command == "tofu" and args.tofu_command == "check":
             return _tofu_check(args, console)
+        if command == "tofu" and args.tofu_command == "apply":
+            return _tofu_apply(args, console)
         if command == "infrastructure" and args.infrastructure_command == "ssh-key":
             return _infrastructure_ssh_key(resolve_config_path(args.config), console)
         if command == "schema":
