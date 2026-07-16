@@ -22,7 +22,7 @@ Navigation keys:
 | `q` | Quit |
 
 Actions are grouped by purpose instead of appearing in one large Operations page. Setup contains
-configuration and credential preparation, Proxmox contains administrator bootstrap actions,
+configuration, credential preparation, and guarded Ansible prerequisite installation; Proxmox contains administrator bootstrap actions,
 Infrastructure contains OpenTofu checks plus guest inventory and baseline operations, Maintenance contains control-plane updates, and
 Diagnostics contains readiness and effective-setting reports. Each section presents its actions
 as sub-actions and shares the same session activity history.
@@ -48,6 +48,12 @@ must use these commands rather than attempting to automate keystrokes in the ter
 
 Commands return `0` for success, `1` when readiness requirements are missing, and `2` for invalid
 configuration or command usage.
+
+**Install Ansible prerequisites** previews and, after confirmation, installs the Debian/Ubuntu
+`ansible-core` package plus the repository's version-locked collections. It supports control
+planes running as root or through sudo, serializes against other infrastructure mutations, and
+writes diagnostics to `logs/ansible-setup.log`. The equivalent unattended workflow is
+`task ansible:setup:plan` followed by `task ansible:setup`.
 
 ## Adding an operation
 

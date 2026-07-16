@@ -7,6 +7,8 @@ All notable changes to this project are documented in this file.
 ### Added
 
 - OpenTofu-derived, ignored Ansible runtime inventory with configuration/state drift refusal.
+- A guarded Setup-menu and CLI workflow that installs `ansible-core` and locked collections on
+  existing Debian/Ubuntu control planes using root or sudo, with serialized execution and logs.
 - Locked Debian-family guest baseline covering hostname, timezone, prerequisite packages, the
   dedicated automation account, authorized key, explicit sudo policy, and an ownership marker.
 - CLI, Task, and Infrastructure-menu operations for inventory preview, baseline check mode, and a

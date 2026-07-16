@@ -122,6 +122,16 @@ tasks:
     cmds:
       - ansible-galaxy collection install --requirements-file ansible/requirements.yml
 
+  ansible:setup:plan:
+    desc: Preview installation of Ansible and locked collections
+    cmds:
+      - uv run --locked --no-dev homelabctl infrastructure ansible-setup --config "{{.CONFIG}}"
+
+  ansible:setup:
+    desc: Install Ansible and locked collections through the guarded product workflow
+    cmds:
+      - uv run --locked --no-dev homelabctl infrastructure ansible-setup --config "{{.CONFIG}}" --apply
+
   applications:plan:
     desc: Display curated application revisions and checksums
     cmds:

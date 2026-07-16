@@ -10,6 +10,11 @@ from pathlib import Path
 import yaml
 
 from homelabctl.ansible import AnsibleError, generate_inventory, run_baseline
+from homelabctl.ansible_setup import (
+    AnsibleSetupError,
+    install_ansible_prerequisites,
+    setup_plan,
+)
 from homelabctl.applications import (
     ApplicationError,
     application_plan,
@@ -88,6 +93,31 @@ def validate_configuration(path: Path) -> OperationResult:
             f"Environment: {config.site.environment}",
             f"Proxmox node: {config.proxmox.node}",
             f"Management network: {config.network.management_cidr}",
+        ),
+    )
+
+
+def ansible_setup_plan(path: Path) -> OperationResult:
+    try:
+        lines = setup_plan(path)
+    except AnsibleSetupError as exc:
+        return OperationResult(False, "Install Ansible prerequisites", tuple(str(exc).splitlines()))
+    return OperationResult(True, "Install Ansible prerequisites", lines)
+
+
+def setup_ansible(path: Path) -> OperationResult:
+    try:
+        result = install_ansible_prerequisites(path)
+    except AnsibleSetupError as exc:
+        return OperationResult(False, "Install Ansible prerequisites", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Install Ansible prerequisites",
+        (
+            f"Ansible playbook: {result.ansible_playbook}",
+            f"Ansible Galaxy: {result.ansible_galaxy}",
+            "Locked collections installed",
+            f"Diagnostic log: {result.diagnostic_log}",
         ),
     )
 
@@ -519,6 +549,15 @@ OPERATIONS: tuple[Operation, ...] = (
         "Validate configuration",
         "Check every site value and reject unknown or unsafe settings.",
         validate_configuration,
+    ),
+    Operation(
+        "ansible-setup",
+        "Install Ansible prerequisites",
+        "Install ansible-core and the repository's locked collections on this control plane.",
+        setup_ansible,
+        section="setup",
+        destructive=True,
+        plan=ansible_setup_plan,
     ),
     Operation(
         "doctor",

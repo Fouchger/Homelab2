@@ -37,12 +37,17 @@ def _tofu_outputs(root: Path, tofu_executable: str | None = None) -> dict[str, o
     tofu = tofu_executable or shutil.which("tofu")
     if not tofu:
         raise AnsibleError("OpenTofu is not installed or not on PATH")
+    environment = os.environ.copy()
+    environment["TF_IN_AUTOMATION"] = "1"
+    environment["TF_INPUT"] = "0"
+    environment["TF_DATA_DIR"] = str(root / ".cache" / "tofu" / "data")
     completed = subprocess.run(
         [tofu, f"-chdir={root / 'infrastructure'}", "output", "-json", "proxmox_lxcs"],
         check=False,
         capture_output=True,
         text=True,
         encoding="utf-8",
+        env=environment,
     )
     if completed.returncode != 0:
         raise AnsibleError(

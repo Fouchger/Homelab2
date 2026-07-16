@@ -13,6 +13,11 @@ from rich.table import Table
 
 from homelabctl import __version__
 from homelabctl.ansible import AnsibleError, generate_inventory, run_baseline
+from homelabctl.ansible_setup import (
+    AnsibleSetupError,
+    install_ansible_prerequisites,
+    setup_plan,
+)
 from homelabctl.applications import ApplicationError, application_plan, run_applications
 from homelabctl.configuration import (
     ConfigurationError,
@@ -175,6 +180,13 @@ def build_parser() -> argparse.ArgumentParser:
         "ssh-key", help="create and configure the guest automation SSH key"
     )
     _add_config_argument(infrastructure_ssh)
+    infrastructure_ansible = infrastructure_commands.add_parser(
+        "ansible-setup", help="plan or install Ansible system and collection prerequisites"
+    )
+    _add_config_argument(infrastructure_ansible)
+    infrastructure_ansible.add_argument(
+        "--apply", action="store_true", help="install the displayed prerequisites"
+    )
 
     ansible = subcommands.add_parser("ansible", help="configure provisioned guests")
     ansible_commands = ansible.add_subparsers(dest="ansible_command", required=True)
@@ -325,6 +337,19 @@ def _infrastructure_ssh_key(config_path: Path, console: Console) -> int:
     return 0 if result.succeeded else 2
 
 
+def _infrastructure_ansible_setup(config_path: Path, *, apply: bool, console: Console) -> int:
+    console.print("[bold cyan]Ansible prerequisite installation plan[/]")
+    for line in setup_plan(config_path):
+        console.print(f"- {line}")
+    if not apply:
+        console.print("[yellow]Plan only. Re-run with --apply to install prerequisites.[/]")
+        return 0
+    result = install_ansible_prerequisites(config_path)
+    console.print(f"[green]Ansible prerequisites ready:[/] {result.ansible_playbook}")
+    console.print(f"[cyan]Diagnostic log:[/] {result.diagnostic_log}")
+    return 0
+
+
 def _ansible(args: argparse.Namespace, console: Console) -> int:
     config_path = resolve_config_path(args.config)
     if args.ansible_command == "inventory":
@@ -409,6 +434,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _tofu_apply(args, console)
         if command == "infrastructure" and args.infrastructure_command == "ssh-key":
             return _infrastructure_ssh_key(resolve_config_path(args.config), console)
+        if command == "infrastructure" and args.infrastructure_command == "ansible-setup":
+            return _infrastructure_ansible_setup(
+                resolve_config_path(args.config), apply=args.apply, console=console
+            )
         if command == "ansible":
             return _ansible(args, console)
         if command == "applications":
@@ -419,6 +448,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
     except (
         AnsibleError,
+        AnsibleSetupError,
         ApplicationError,
         ConfigurationError,
         ProxmoxBootstrapError,

@@ -51,7 +51,10 @@ def test_inventory_is_derived_from_tofu_output(
 ) -> None:
     path = _site(tmp_path)
 
+    environment: dict[str, str] = {}
+
     def run(*args: object, **kwargs: object) -> CompletedProcess[str]:
+        environment.update(kwargs["env"])
         return CompletedProcess(
             args=[],
             returncode=0,
@@ -72,6 +75,8 @@ def test_inventory_is_derived_from_tofu_output(
     assert hosts == ("monitoring: root@192.168.10.20 (monitoring)",)
     assert inventory["all"]["hosts"]["monitoring"]["ansible_user"] == "root"
     assert "private-test-placeholder" not in inventory_path.read_text(encoding="utf-8")
+    assert environment["TF_DATA_DIR"] == str(tmp_path / ".cache" / "tofu" / "data")
+    assert environment["TF_INPUT"] == "0"
 
 
 def test_inventory_refuses_state_drift(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

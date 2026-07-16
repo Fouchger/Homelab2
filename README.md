@@ -129,6 +129,8 @@ task infrastructure:ssh-key Create and configure the guest automation SSH key
 task tofu:check              Validate typed inputs and create a non-destructive plan
 task tofu:apply              Apply only the existing reviewed plan with runtime credentials
 task ansible:inventory       Derive ignored runtime inventory from OpenTofu outputs
+task ansible:setup:plan      Preview installation of Ansible prerequisites
+task ansible:setup           Install Ansible and locked collections
 task ansible:check           Preview the Debian-family guest baseline
 task ansible:apply           Apply the reviewed guest baseline
 task applications:plan      Show curated application revisions and checksums
