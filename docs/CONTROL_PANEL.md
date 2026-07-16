@@ -27,6 +27,11 @@ Infrastructure contains OpenTofu checks plus guest inventory and baseline operat
 Diagnostics contains readiness and effective-setting reports. Each section presents its actions
 as sub-actions and shares the same session activity history.
 
+Every operation displays a live progress banner with its current stage and elapsed time. While a
+long-running command is active, the banner updates every second and the portable activity history
+records a heartbeat every 15 seconds. Operation buttons remain disabled until completion, so a
+second action cannot accidentally replace or conceal a command that is still running.
+
 ## Input management
 
 The configuration editor loads the active YAML file or presents safe example values on first run.

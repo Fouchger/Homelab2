@@ -121,7 +121,7 @@ async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(
         await pilot.pause()
         assert app.query_one("#operation-secrets-init")
         app.query_one("#operation-secrets-init", Button).press()
-        await pilot.pause(0.05)
+        await pilot.pause(0.2)
         assert isinstance(app.screen, ConfirmDialog)
         await pilot.pause(0.05)
 
@@ -244,6 +244,7 @@ async def test_activity_can_be_copied_as_plain_text(tmp_path: Path, monkeypatch)
     execute = Mock(return_value=OperationResult(True, "OpenTofu", ("Validated",)))
     monkeypatch.setattr("homelabctl.ui.execute", execute)
     app = ControlPlaneApp(tmp_path / "site.yaml")
+    app._clock = Mock(side_effect=[100.0, 100.0])
 
     async with app.run_test(size=(140, 48)) as pilot:
         await pilot.press("5")
@@ -254,7 +255,13 @@ async def test_activity_can_be_copied_as_plain_text(tmp_path: Path, monkeypatch)
 
         assert isinstance(app.screen, ActivityCopyDialog)
         copy_text = app.screen.query_one("#activity-copy-text", TextArea)
-        expected = "> Check OpenTofu foundation\nValidated\nCompleted\n"
+        expected = (
+            "> Check OpenTofu foundation\n"
+            "Check OpenTofu foundation · started\n"
+            "Check OpenTofu foundation · finished in 0s\n"
+            "Validated\n"
+            "Completed\n"
+        )
         assert copy_text.text == expected
         assert copy_text.selected_text == expected
         assert (tmp_path / "logs" / "activity-report.txt").read_text(encoding="utf-8") == expected

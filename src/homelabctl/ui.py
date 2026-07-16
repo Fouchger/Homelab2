@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
+import time
+from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar, TypeVar
 
 from pydantic import ValidationError
 from textual import on, work
@@ -32,6 +35,8 @@ from homelabctl.configuration import ConfigurationError, find_project_root, load
 from homelabctl.doctor import run_checks
 from homelabctl.models import HomelabConfig, default_config
 from homelabctl.operations import OPERATIONS, OperationResult, execute, execute_with_secret
+
+T = TypeVar("T")
 
 
 class ConfirmDialog(ModalScreen[bool]):
@@ -582,6 +587,7 @@ class ActionPage(VerticalScroll):
                     yield Static(operation.title, classes="operation-title")
                     yield Static(operation.description, classes="muted")
                     yield Button("Run", id=f"operation-{operation.identifier}")
+        yield Static("", classes="operation-progress")
         with Horizontal(classes="activity-heading"):
             yield Static("Session activity", classes="section-title")
             yield Button("View / copy activity", id=f"copy-activity-{self.section}")
@@ -715,6 +721,15 @@ class ControlPlaneApp(App[None]):
     .operation-title { height: 2; text-style: bold; color: $hl-text; }
     .operation-card Button { dock: bottom; width: 1fr; }
     .activity-heading { height: 4; margin-top: 1; align-vertical: middle; }
+    .operation-progress {
+        display: none;
+        height: 3;
+        margin-top: 1;
+        padding: 1 2;
+        background: #10283d;
+        border-left: thick $hl-accent;
+        color: $text;
+    }
     .activity-heading .section-title { width: 1fr; margin-top: 0; }
     .activity-heading Button { width: 20; }
     .activity-log { height: 16; min-height: 9; background: #050b13; border: solid $hl-border; padding: 1; }
@@ -769,6 +784,8 @@ class ControlPlaneApp(App[None]):
         self.config_path = config_path
         self.initial_page = "setup" if initial_page == "operations" else initial_page
         self._activity_lines: list[str] = []
+        self._operation_active = False
+        self._clock: Callable[[], float] = time.monotonic
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -852,15 +869,66 @@ class ControlPlaneApp(App[None]):
             log.write(rendered)
         self._activity_lines.append(rendered if plain is None else plain)
 
-    @work(group="operations", exclusive=True)
+    def _set_operation_progress(self, message: str | None) -> None:
+        for status in self.query(".operation-progress").results(Static):
+            status.display = message is not None
+            status.update(message or "")
+
+    def _set_operation_buttons_disabled(self, disabled: bool) -> None:
+        for button in self.query(".operation-card Button").results(Button):
+            button.disabled = disabled
+
+    async def _run_with_progress(self, label: str, function: Callable[..., T], *args: Any) -> T:
+        started = self._clock()
+        self._set_operation_progress(f"⏳ {label} · starting")
+        self.write_activity(f"{label} · started")
+
+        async def heartbeat() -> None:
+            last_report = 0
+            while True:
+                await asyncio.sleep(1)
+                elapsed = int(self._clock() - started)
+                self._set_operation_progress(f"⏳ {label} · running for {elapsed}s")
+                if elapsed >= last_report + 15:
+                    self.write_activity(f"{label} · still running ({elapsed}s)")
+                    last_report = elapsed
+
+        progress = asyncio.create_task(heartbeat())
+        try:
+            result = await asyncio.to_thread(function, *args)
+        finally:
+            progress.cancel()
+            with suppress(asyncio.CancelledError):
+                await progress
+        elapsed = int(self._clock() - started)
+        self._set_operation_progress(f"✓ {label} · finished in {elapsed}s")
+        self.write_activity(f"{label} · finished in {elapsed}s")
+        return result
+
+    @work(group="operations")
     async def run_operation(self, identifier: str) -> None:
+        if self._operation_active:
+            self.notify("Another operation is already running", severity="warning")
+            return
+        self._operation_active = True
+        self._set_operation_buttons_disabled(True)
+        try:
+            await self._execute_operation(identifier)
+        finally:
+            self._operation_active = False
+            self._set_operation_buttons_disabled(False)
+            self._set_operation_progress(None)
+
+    async def _execute_operation(self, identifier: str) -> None:
         operation = next(item for item in OPERATIONS if item.identifier == identifier)
         self.write_activity(
             f"[bold cyan]> {operation.title}[/bold cyan]", plain=f"> {operation.title}"
         )
         if operation.destructive:
             preview = (
-                await asyncio.to_thread(operation.plan, self.config_path)
+                await self._run_with_progress(
+                    f"Preparing {operation.title}", operation.plan, self.config_path
+                )
                 if operation.plan is not None
                 else OperationResult(True, f"{operation.title} plan", (operation.description,))
             )
@@ -896,11 +964,13 @@ class ControlPlaneApp(App[None]):
                 )
                 self.write_activity("")
                 return
-            result = await asyncio.to_thread(
-                execute_with_secret, identifier, secret, self.config_path
+            result = await self._run_with_progress(
+                operation.title, execute_with_secret, identifier, secret, self.config_path
             )
         else:
-            result = await asyncio.to_thread(execute, identifier, self.config_path)
+            result = await self._run_with_progress(
+                operation.title, execute, identifier, self.config_path
+            )
         for line in result.lines:
             self.write_activity(line)
         if (
@@ -916,8 +986,11 @@ class ControlPlaneApp(App[None]):
                     "[bold yellow]Explicit token recovery confirmed[/bold yellow]",
                     plain="Explicit token recovery confirmed",
                 )
-                result = await asyncio.to_thread(
-                    execute, result.recovery_operation, self.config_path
+                result = await self._run_with_progress(
+                    "Recovering Proxmox API token",
+                    execute,
+                    result.recovery_operation,
+                    self.config_path,
                 )
                 for line in result.lines:
                     self.write_activity(line)
