@@ -581,6 +581,11 @@ class ActionPage(VerticalScroll):
         ]
         yield Static(title, classes="page-title")
         yield Static(subtitle, classes="page-subtitle")
+        if len(operations) > 3:
+            yield Static(
+                f"{len(operations)} available actions · scroll to view every action",
+                classes="actions-hint",
+            )
         with Grid(classes=f"actions-grid action-count-{len(operations)}"):
             for operation in operations:
                 with Vertical(classes="operation-card"):
@@ -712,12 +717,13 @@ class ControlPlaneApp(App[None]):
     .form-actions { height: 4; align-horizontal: right; }
     .form-actions Button { margin-left: 1; }
     .actions-grid {
-        grid-size: 3 1;
+        grid-size: 3;
         grid-columns: 1fr 1fr 1fr;
         grid-rows: 9;
         grid-gutter: 1;
-        height: 9;
+        height: auto;
     }
+    .actions-hint { height: 2; color: $hl-accent; }
     .operation-title { height: 2; text-style: bold; color: $hl-text; }
     .operation-card Button { dock: bottom; width: 1fr; }
     .activity-heading { height: 4; margin-top: 1; align-vertical: middle; }
@@ -769,14 +775,13 @@ class ControlPlaneApp(App[None]):
     Screen.-compact ConfigurationPage,
     Screen.-compact ActionPage,
     Screen.-compact HelpPage { padding: 1 2; }
-    Screen.-compact .action-count-1 { grid-size: 1 1; grid-columns: 1fr; grid-rows: 9; height: 9; }
-    Screen.-compact .action-count-2 { grid-size: 1 2; grid-columns: 1fr; grid-rows: 9 9; height: 19; }
-    Screen.-compact .action-count-3 { grid-size: 1 3; grid-columns: 1fr; grid-rows: 9 9 9; height: 29; }
+    Screen.-compact .actions-grid { grid-size: 1; grid-columns: 1fr; }
     Screen.-wide #sidebar { width: 22; }
     Screen.-wide #config-path { display: none; }
-    Screen.-wide .action-count-3 { grid-size: 2 2; grid-columns: 1fr 1fr; grid-rows: 9 9; height: 19; }
+    Screen.-wide .actions-grid { grid-size: 2; grid-columns: 1fr 1fr; }
     Screen.-very-wide #sidebar { width: 28; }
     Screen.-very-wide #config-path { display: block; }
+    Screen.-very-wide .actions-grid { grid-size: 3; grid-columns: 1fr 1fr 1fr; }
     """
 
     def __init__(self, config_path: Path, *, initial_page: str = "overview") -> None:

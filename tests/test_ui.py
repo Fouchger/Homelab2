@@ -228,12 +228,14 @@ async def test_opentofu_operation_is_reachable_in_very_wide_layout(
     async with app.run_test(size=(140, 48)) as pilot:
         await pilot.press("5")
         await pilot.pause()
-        assert app.query_one("#operation-automation-ssh", Button)
+        first_action = app.query_one("#operation-automation-ssh", Button)
         assert app.query_one("#operation-tofu-apply", Button)
         assert app.query_one("#operation-ansible-check", Button)
         assert app.query_one("#operation-ansible-apply", Button)
         assert app.query_one("#operation-applications-check", Button)
-        assert app.query_one("#operation-applications-apply", Button)
+        last_action = app.query_one("#operation-applications-apply", Button)
+        assert last_action.region.y > first_action.region.y
+        assert app.query_one("#infrastructure .actions-grid").virtual_size.height >= 27
         await pilot.click("#operation-tofu-check")
         await pilot.pause()
 
@@ -250,7 +252,7 @@ async def test_activity_can_be_copied_as_plain_text(tmp_path: Path, monkeypatch)
         await pilot.press("5")
         await pilot.click("#operation-tofu-check")
         await pilot.pause()
-        await pilot.click("#copy-activity-infrastructure")
+        await pilot.press("c")
         await pilot.pause()
 
         assert isinstance(app.screen, ActivityCopyDialog)

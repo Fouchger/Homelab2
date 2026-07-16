@@ -11,6 +11,8 @@ All notable changes to this project are documented in this file.
   existing Debian/Ubuntu control planes using root or sudo, with serialized execution and logs.
 - A consistent live progress banner, elapsed-time display, 15-second activity heartbeat, and
   operation-button lock for every control-panel action.
+- Responsive multi-row action grids with an explicit scroll hint, ensuring sections with more than
+  three operations no longer clip later menu actions.
 - Locked Debian-family guest baseline covering hostname, timezone, prerequisite packages, the
   dedicated automation account, authorized key, explicit sudo policy, and an ownership marker.
 - CLI, Task, and Infrastructure-menu operations for inventory preview, baseline check mode, and a
