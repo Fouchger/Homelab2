@@ -34,3 +34,19 @@ def test_uptime_kuma_preview_skips_tasks_that_need_real_guest_files() -> None:
     assert "chromium" not in prerequisites["ansible.builtin.apt"]["name"]
     extraction = next(task for task in tasks if task["name"] == "Extract the approved application source")
     assert extraction["when"] == "not ansible_check_mode"
+
+
+def test_uptime_kuma_dependencies_run_as_service_account_without_ansible_acl_switch() -> None:
+    playbook = yaml.safe_load(
+        (Path(__file__).parents[1] / "ansible" / "applications" / "uptime-kuma.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    task = next(task for task in playbook[0]["tasks"] if task["name"] == "Install locked production dependencies")
+    assert "become_user" not in task
+    assert task["ansible.builtin.command"]["argv"][:4] == [
+        "/usr/sbin/runuser",
+        "-u",
+        "uptime-kuma",
+        "--",
+    ]

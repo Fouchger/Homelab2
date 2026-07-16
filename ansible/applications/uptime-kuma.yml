@@ -71,11 +71,22 @@
       when: not ansible_check_mode
 
     - name: Install locked production dependencies
-      ansible.builtin.command: npm ci --omit=dev --no-audit
+      ansible.builtin.command:
+        argv:
+          - /usr/sbin/runuser
+          - -u
+          - uptime-kuma
+          - --
+          - /usr/bin/env
+          - HOME=/var/lib/uptime-kuma
+          - NPM_CONFIG_CACHE=/var/lib/uptime-kuma/.npm
+          - npm
+          - ci
+          - --omit=dev
+          - --no-audit
       args:
         chdir: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}"
         creates: "/opt/uptime-kuma/releases/{{ uptime_kuma_version }}/node_modules/.package-lock.json"
-      become_user: uptime-kuma
       when: not ansible_check_mode
 
     - name: Download the immutable frontend archive
