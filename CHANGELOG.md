@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file.
   secret-free outputs for later Ansible inventory.
 - Exact Cloudflare provider pinning and a regenerated multi-platform provider lockfile.
 - Phase 3 provisioning and DNS ownership operator guides.
+- Credential-aware CLI and Task application of only the existing reviewed OpenTofu saved plan.
 
 ### Changed
 
@@ -24,12 +25,19 @@ All notable changes to this project are documented in this file.
   when records are declared, and redacts both provider tokens from diagnostics.
 - The guided configuration form preserves Phase 3 resources that are currently edited in YAML.
 
+### Fixed
+
+- Cloudflare saved-plan applies now receive the SOPS-decrypted API token in memory instead of
+  failing after any independent Proxmox changes have already completed.
+
 ### Verified
 
 - OpenTofu formatting, provider initialization, schema validation, empty example planning, and an
   offline one-container creation plan.
 - Generated JSON Schema, example configuration validation, focused model/secret/OpenTofu/UI tests,
   and Ruff checks.
+- Saved-plan application with both runtime provider credentials, exact-plan enforcement, missing
+  plan refusal, diagnostic redaction, and partial-apply recovery guidance.
 
 ## [0.2.0] - 2026-07-13
 

@@ -122,6 +122,7 @@ task proxmox:bootstrap:plan  Preview API identity changes
 task proxmox:bootstrap       Create/reconcile the API user, role, ACL, and token
 task infrastructure:ssh-key Create and configure the guest automation SSH key
 task tofu:check              Validate typed inputs and create a non-destructive plan
+task tofu:apply              Apply only the existing reviewed plan with runtime credentials
 task check             Run formatting, linting, tests, and config validation
 ```
 
