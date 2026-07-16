@@ -17,15 +17,44 @@
       community.general.timezone:
         name: "{{ homelab_timezone }}"
 
-    - name: Install baseline packages
+    - name: Set safe Debian package time limits
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/90-homelab-timeouts
+        content: |
+          Acquire::Retries "1";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::ftp::Timeout "30";
+          DPkg::Lock::Timeout "60";
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Refresh package cache (up to 90 seconds)
+      ansible.builtin.command:
+        argv:
+          - timeout
+          - --foreground
+          - 90s
+          - apt-get
+          - update
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      changed_when: false
+      check_mode: false
+      when: not ansible_check_mode
+
+    - name: Install baseline packages with bounded package access
       ansible.builtin.apt:
         name:
           - ca-certificates
           - curl
           - sudo
         state: present
-        update_cache: true
-        cache_valid_time: 3600
+        update_cache: false
+        lock_timeout: 60
+      environment:
+        DEBIAN_FRONTEND: noninteractive
 
     - name: Create the dedicated automation account
       ansible.builtin.user:
