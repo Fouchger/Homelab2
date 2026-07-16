@@ -394,10 +394,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if command == "menu":
             from homelabctl.ui import ControlPlaneApp
 
-            ControlPlaneApp(
-                resolve_config_path(getattr(args, "config", None)),
-                initial_page=getattr(args, "page", "overview"),
-            ).run()
+            try:
+                ControlPlaneApp(
+                    resolve_config_path(getattr(args, "config", None)),
+                    initial_page=getattr(args, "page", "overview"),
+                ).run()
+            except KeyboardInterrupt:
+                console.print("[yellow]Management console stopped.[/]")
             return 0
         if command == "init":
             path = initialize_config(args.config, force=args.force)
