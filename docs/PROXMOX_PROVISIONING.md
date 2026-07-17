@@ -123,3 +123,10 @@ workflows also create and mutate LXCs. They must never run against an OpenTofu-o
 #14 tracks a curated, pinned application catalog that runs only after the guest exists, preferably
 through a reviewed container-side installer invoked by Ansible. OpenTofu owns guest lifecycle;
 Ansible owns baseline and application configuration.
+
+That rule describes the accepted Phase 3 and Phase 4 resource path. Phase 6 may use a separately
+reviewed, commit-pinned Community Scripts creator for a brand-new, collision-checked replacement.
+The resulting guest must be captured and imported into matching OpenTofu configuration, followed
+by a zero-change plan, before it is accepted as managed. Community Scripts never runs against an
+already managed or discovered legacy guest, and a failed new guest is not automatically deleted.
+See [`PHASE_6_EXECUTION_PLAN.md`](PHASE_6_EXECUTION_PLAN.md).

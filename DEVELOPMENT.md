@@ -11,6 +11,50 @@ acceptance criteria, and implementation discussion for each active workstream.
 | `v0.2.0` | Phase 2: secure provisioning foundation | Complete |
 | `v0.3.0` | Phase 3: Proxmox and Cloudflare provisioning | Complete |
 | `v0.4.0` | Phase 4: system configuration and guarded operations | Complete |
+| `v0.5.0` | Phase 5: whole-homelab architecture and build design | Documentation complete |
+| `v0.6.0` | Phase 6: automated whole-homelab build | Planned |
+
+## Phase 5 plan
+
+Phase 5 expands the control-plane boundary from guest provisioning to the complete homelab
+bootstrap path. It adopts the existing MikroTik edge, models VLAN, DHCP, Wi-Fi, routing, firewall,
+and DNS ownership, and establishes a clean control plane and core DNS foundation on the existing
+Proxmox host.
+
+The existing OpenMediaVault VM, two Plex containers, and Immich container are protected legacy
+workloads. Phase 5 must document and preserve their raw-disk, media-mount, database, GPU, network,
+and startup dependencies but must not place them under destructive lifecycle management. All other
+existing guests are replaceable after their dependencies or replacements have been verified.
+
+Homelab2 does not stop, delete, destroy, or replace any discovered server. It builds and validates
+replacements alongside existing systems; only the operator may manually retire an old server after
+accepting its replacement.
+
+The architecture and staged safety boundary are recorded in
+[`docs/HOMELAB_ARCHITECTURE.md`](docs/HOMELAB_ARCHITECTURE.md) and
+[`docs/CLEAN_REBUILD_PLAN.md`](docs/CLEAN_REBUILD_PLAN.md).
+
+The complete deployment and application target is recorded in
+[`docs/FUTURE_STATE.md`](docs/FUTURE_STATE.md). Phase 6 sequencing, development requirements,
+acceptance gates, and GitHub workflow are defined in
+[`docs/PHASE_6_EXECUTION_PLAN.md`](docs/PHASE_6_EXECUTION_PLAN.md).
+
+Phase 5 is documentation-only. It does not authorize or perform any production infrastructure
+change. Its acceptance boundary is a complete future-state catalogue, explicit tool ownership,
+the no-destroy migration contract, resource and exposure guardrails, and an issue-ready Phase 6
+execution plan.
+
+## Phase 6 plan
+
+Phase 6 implements the accepted design through GitHub-tracked workstreams. It adds the whole-site
+manifest and safety engine, MikroTik desired state, pinned Community Scripts integration, the
+replacement control plane and DNS, the Deployrr-compatible edge and media Docker platforms,
+OpenMediaVault adoption, Plex and Immich side-by-side rebuilds, and full recovery acceptance.
+
+Community Scripts accelerate reviewed VM and LXC creation. Deployrr supplies reviewed Docker and
+Traefik conventions. Neither is the desired-state owner: Homelab2 pins inputs, supplies unattended
+configuration, validates results, records evidence, and refuses destructive actions against every
+discovered server.
 
 ## Phase 1 acceptance
 

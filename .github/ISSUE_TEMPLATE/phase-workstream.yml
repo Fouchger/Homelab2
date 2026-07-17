@@ -1,0 +1,54 @@
+name: Phase workstream
+description: Track one planned Homelab2 implementation or acceptance workstream
+title: "[Phase N] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never include passwords, tokens, private keys, decrypted secrets, or sensitive production data.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Describe the outcome, not only the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: List included deliverables and explicit exclusions.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and ownership
+      description: Identify prerequisites and the single owner of every affected resource.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and rollback
+      description: Explain protected resources, refusal rules, backup, resume, and rollback behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Use a checklist with automated, disposable, and live validation where applicable.
+      value: |
+        - [ ] Automated checks pass
+        - [ ] Idempotence and resume behavior pass
+        - [ ] Documentation is current
+        - [ ] Required recovery or rollback check passes
+        - [ ] Sanitized acceptance evidence is recorded
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Acceptance evidence
+      description: Add sanitized logs, observations, and linked pull requests as work progresses.

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Complete whole-homelab future-state scope covering MikroTik, Proxmox, Technitium, OpenMediaVault,
+  a Deployrr-compatible Traefik/DockFlare edge stack, two managed Plex containers, Immich, backup,
+  exposure, capacity, and recovery boundaries.
+- Phase 6 execution and development plan with ordered workstreams, acceptance gates, a GitHub
+  progress workflow, and a reusable workstream issue template.
+- Community Scripts as a pinned, checksum-verified VM/LXC bootstrap accelerator beneath Homelab2's
+  unattended orchestration and no-destroy safety boundary.
+
 ## [0.4.0] - 2026-07-17
 
 ### Added
