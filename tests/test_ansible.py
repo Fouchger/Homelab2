@@ -167,7 +167,12 @@ def test_baseline_sets_a_short_ssh_connection_timeout(
                 command,
                 0,
                 json.dumps(
-                    {"monitoring": {"hostname": "monitoring", "management_address": "192.168.10.20"}}
+                    {
+                        "monitoring": {
+                            "hostname": "monitoring",
+                            "management_address": "192.168.10.20",
+                        }
+                    }
                 ),
                 "",
             )

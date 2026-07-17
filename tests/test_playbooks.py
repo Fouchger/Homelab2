@@ -10,7 +10,9 @@ def test_baseline_package_access_is_bounded() -> None:
         (Path(__file__).parents[1] / "ansible" / "baseline.yml").read_text(encoding="utf-8")
     )
     tasks = playbook[0]["tasks"]
-    timeout_policy = next(task for task in tasks if task["name"] == "Set safe Debian package time limits")
+    timeout_policy = next(
+        task for task in tasks if task["name"] == "Set safe Debian package time limits"
+    )
     assert 'Acquire::http::Timeout "30";' in timeout_policy["ansible.builtin.copy"]["content"]
     assert 'DPkg::Lock::Timeout "60";' in timeout_policy["ansible.builtin.copy"]["content"]
     cache_refresh = next(
@@ -30,9 +32,13 @@ def test_uptime_kuma_preview_skips_tasks_that_need_real_guest_files() -> None:
         )
     )
     tasks = playbook[0]["tasks"]
-    prerequisites = next(task for task in tasks if task["name"] == "Install pinned-adapter prerequisites")
+    prerequisites = next(
+        task for task in tasks if task["name"] == "Install pinned-adapter prerequisites"
+    )
     assert "chromium" not in prerequisites["ansible.builtin.apt"]["name"]
-    extraction = next(task for task in tasks if task["name"] == "Extract the approved application source")
+    extraction = next(
+        task for task in tasks if task["name"] == "Extract the approved application source"
+    )
     assert extraction["when"] == "not ansible_check_mode"
 
 
@@ -42,7 +48,11 @@ def test_uptime_kuma_dependencies_run_as_service_account_without_ansible_acl_swi
             encoding="utf-8"
         )
     )
-    task = next(task for task in playbook[0]["tasks"] if task["name"] == "Install locked production dependencies")
+    task = next(
+        task
+        for task in playbook[0]["tasks"]
+        if task["name"] == "Install locked production dependencies"
+    )
     assert "become_user" not in task
     assert task["ansible.builtin.command"]["argv"][:4] == [
         "/usr/sbin/runuser",

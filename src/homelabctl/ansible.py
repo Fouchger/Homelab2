@@ -110,8 +110,7 @@ def generate_inventory(
                 # Never leave a hidden SSH confirmation prompt behind the menu.
                 # New host keys are recorded and changed keys still fail safely.
                 "ansible_ssh_common_args": (
-                    "-o StrictHostKeyChecking=accept-new "
-                    f"-o UserKnownHostsFile={known_hosts}"
+                    f"-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile={known_hosts}"
                 ),
             },
         }
@@ -133,16 +132,19 @@ def _run_ansible_with_live_output(
     environment["PYTHONUNBUFFERED"] = "1"
     output: list[str] = []
     try:
-        with subprocess.Popen(
-            command,
-            cwd=root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            bufsize=1,
-            env=environment,
-        ) as process, diagnostic.open("w", encoding="utf-8", newline="\n") as log:
+        with (
+            subprocess.Popen(
+                command,
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                bufsize=1,
+                env=environment,
+            ) as process,
+            diagnostic.open("w", encoding="utf-8", newline="\n") as log,
+        ):
             assert process.stdout is not None
             output_queue: Queue[str | None] = Queue()
 
