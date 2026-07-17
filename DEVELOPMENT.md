@@ -49,7 +49,9 @@ execution plan.
 Phase 6 implements the accepted design through GitHub-tracked workstreams. It adds the whole-site
 manifest and safety engine, MikroTik desired state, pinned Community Scripts integration, the
 replacement control plane and DNS, the Deployrr-compatible edge and media Docker platforms,
-OpenMediaVault adoption, Plex and Immich side-by-side rebuilds, and full recovery acceptance.
+OpenMediaVault adoption, consolidation into one Plex service, the Immich side-by-side rebuild, and
+full recovery acceptance. New managed guests standardize on Ubuntu 24.04 unless a documented
+upstream support or appliance requirement justifies another operating system.
 
 Community Scripts accelerate reviewed VM and LXC creation. Deployrr supplies reviewed Docker and
 Traefik conventions. Neither is the desired-state owner: Homelab2 pins inputs, supplies unattended

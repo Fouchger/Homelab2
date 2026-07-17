@@ -72,12 +72,13 @@ unrelated network redesign.
 ## Stage 3: rebuild core DNS
 
 1. Define the internal namespace, reverse zones, forwarding policy, and public/private ownership.
-2. Build replacement DNS services on temporary addresses so the existing servers remain online.
+2. Build one replacement DNS service on a new static address below `.100` so the existing servers
+   remain online.
 3. Import only reviewed zones and records; do not import undocumented historical configuration.
 4. Verify recursive, forward, reverse, and failure behavior from every VLAN.
 5. Change MikroTik DHCP DNS settings through a reviewed transition.
-6. Observe client renewal and resolution before moving the replacement servers to their final
-   identities or presenting VMIDs 21001 and 21002 as manual-retirement candidates.
+6. Observe client renewal and resolution before presenting VMIDs 21001 and 21002 as
+   manual-retirement candidates.
 
 ## Stage 4: adopt OpenMediaVault and rebuild Plex and Immich
 
@@ -85,9 +86,10 @@ unrelated network redesign.
 2. Validate all OpenMediaVault arrays/filesystems, shares, permissions, and health reporting.
 3. Validate existing Plex media mounts, GPU access, database health, libraries, accounts, users,
    watch state, and remote-access policy.
-4. Build the two managed Plex containers on `media01`, restore copies of their application data,
-   validate both identities, and perform the GPU handover only at an approved checkpoint. Leave the
-   existing Plex LXCs untouched for operator-controlled rollback and retirement.
+4. Select the canonical Plex identity and required state from both protected sources, build one
+   managed Plex container on `media01`, restore the accepted application data, and perform the GPU
+   handover only at an approved checkpoint. Leave both existing Plex LXCs untouched for
+   operator-controlled rollback and retirement.
 5. Encode monitoring and backup checks without placing the retained guests under destructive
    OpenTofu lifecycle control.
 6. Test the dependency startup sequence and recovery after an orderly host restart.
@@ -126,7 +128,8 @@ The clean rebuild is accepted when:
 - trusted Proxmox API access and non-destructive planning pass;
 - internal DNS works from every VLAN and public DNS has an explicit owner;
 - OpenMediaVault exposes every accepted filesystem and share without disk changes;
-- both Plex servers retain their application state, media access, and GPU functionality;
+- the single managed Plex service retains the accepted canonical state, required libraries, media
+  access, and GPU functionality while both old sources remain available for rollback;
 - Immich passes a database-and-media restore into its managed replacement before cutover;
 - every replacement has acceptance evidence while its previous server remains untouched; and
 - the documented recovery procedure can reconstruct managed services without relying on memory.

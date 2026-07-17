@@ -87,6 +87,34 @@ Test recovery before relying on the backup:
 Never commit an age identity or place it directly in `SOPS_AGE_KEY`. Prefer the protected identity
 file and `SOPS_AGE_KEY_FILE` when overriding its location.
 
+## Stable credentials across rebuilds
+
+Phase 6 separates account identity from secret material:
+
+- stable usernames and service-account names live in the versioned site manifest;
+- every service has a unique password, API token, SSH key, or database credential;
+- accepted secret values live in a SOPS-encrypted production YAML bundle;
+- a rebuild decrypts and reuses those accepted values instead of generating unrelated credentials;
+- no universal password is shared across the homelab; and
+- rotation updates the encrypted bundle before the previous credential is revoked.
+
+The encrypted production bundle may be committed to GitHub after its SOPS metadata and encrypted
+values have been validated. The age private identity, private SSH keys, plaintext passwords,
+recovery codes, decrypted `.env` files, and generated runtime secret files must never be committed.
+Runtime files are rendered with restrictive permissions and are excluded from logs and diagnostics.
+
+Restoring the encrypted bundle is not a substitute for application-data recovery. Databases such
+as Plex and Immich can contain user IDs, password hashes, sessions, and application-owned identity
+metadata. Their tested backups remain part of the rebuild contract.
+
+GitHub Actions secrets are appropriate only for credentials that a CI workflow genuinely needs.
+Production router, Proxmox, Cloudflare, application, and database credentials remain under the
+SOPS/age recovery workflow and are decrypted on the trusted control plane.
+
+The repository should be private because it contains the real topology, addresses, hostnames, and
+recovery design. Private visibility does not relax any secret rule: authorized collaborators and
+workflows can still read repository content, and an accidental plaintext secret remains a leak.
+
 ## Recipient and data-key rotation
 
 To rotate the age identity without losing access:

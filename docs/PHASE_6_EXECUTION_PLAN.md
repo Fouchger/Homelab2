@@ -28,6 +28,8 @@ place and records a sanitized diagnostic report.
 Deliver:
 
 - a versioned whole-homelab manifest for networks, guests, applications, exposure, and backups;
+- grouped VMID allocation beginning at 200 and the per-VLAN static/DHCP address policy;
+- Ubuntu 24.04 defaults with documented operating-system exceptions;
 - discovered-resource protection markers and immutable VMID/disk deny lists;
 - resource admission checks for memory, storage, addresses, and VMIDs;
 - plan, apply, resume, and evidence contracts shared by the CLI and control panel;
@@ -83,14 +85,14 @@ export diagnostics without depending on the existing control-plane container.
 
 Deliver:
 
-- `dns-a` and `dns-b` through pinned Technitium Community Scripts adapters;
+- `dns01` through a pinned Technitium Community Scripts adapter;
 - forward and reverse zones, recursion/forwarding, filtering policy, and configuration backup;
 - MikroTik DHCP transition planning;
 - per-VLAN DNS and failure tests; and
 - split-DNS entries for internal Traefik routes.
 
-Acceptance: both replacements answer independently from every intended VLAN, failure behavior is
-known, configuration restores successfully, and old DNS remains running.
+Acceptance: the replacement answers from every intended VLAN, failure behavior is known,
+configuration restores successfully, and both old DNS guests remain running.
 
 ### 6.5 Edge Docker platform
 
@@ -121,20 +123,21 @@ Deliver:
 Acceptance: every disk identifier and share has an owner, no host-side disk mutation is planned,
 managed consumers can recover mounts after restart, and a test backup restores outside production.
 
-### 6.7 Managed Plex rebuild
+### 6.7 Managed Plex consolidation
 
 Deliver:
 
-- inventory and backup of both Plex databases, identities, libraries, mounts, users, and purpose;
-- two separate Plex services in the `media01` Compose project;
+- inventory and backup of both existing Plex databases, identities, libraries, mounts, users, and purpose;
+- an operator-approved canonical identity and explicit consolidation map;
+- one Plex service in the `media01` Compose project;
 - OMV media mounts and least-write access;
 - planned GPU passthrough and shared `/dev/dri` access inside the VM;
 - local, remote, direct-play, transcode, and rollback tests; and
 - a comparison report while both old Plex LXCs remain present.
 
-Acceptance: both new Plex identities preserve accepted state and media access, software validation
-passes before the GPU handover, hardware transcoding passes after the approved checkpoint, and the
-old LXCs remain available for operator-controlled rollback.
+Acceptance: the single Plex service preserves the accepted canonical identity, required state, and
+media access; software validation passes before the GPU handover; hardware transcoding passes after
+the approved checkpoint; and both old LXCs remain available for operator-controlled rollback.
 
 ### 6.8 Managed Immich rebuild
 
@@ -206,7 +209,7 @@ it does not duplicate day-to-day status.
 | 6.4 Replacement DNS | [#21](https://github.com/Fouchger/Homelab2/issues/21) |
 | 6.5 Edge Docker platform | [#22](https://github.com/Fouchger/Homelab2/issues/22) |
 | 6.6 OpenMediaVault and backup foundation | [#23](https://github.com/Fouchger/Homelab2/issues/23) |
-| 6.7 Managed Plex rebuild | [#24](https://github.com/Fouchger/Homelab2/issues/24) |
+| 6.7 Managed Plex consolidation | [#24](https://github.com/Fouchger/Homelab2/issues/24) |
 | 6.8 Managed Immich rebuild | [#25](https://github.com/Fouchger/Homelab2/issues/25) |
 | 6.9 Recovery and release acceptance | [#26](https://github.com/Fouchger/Homelab2/issues/26) |
 

@@ -7,8 +7,10 @@ All notable changes to this project are documented in this file.
 ### Added
 
 - Complete whole-homelab future-state scope covering MikroTik, Proxmox, Technitium, OpenMediaVault,
-  a Deployrr-compatible Traefik/DockFlare edge stack, two managed Plex containers, Immich, backup,
+  a Deployrr-compatible Traefik/DockFlare edge stack, one managed Plex service, Immich, backup,
   exposure, capacity, and recovery boundaries.
+- Grouped VMIDs beginning at 200, static host addresses below 100, DHCP host addresses above 200,
+  and Ubuntu 24.04 as the default operating system for new managed guests.
 - Phase 6 execution and development plan with ordered workstreams, acceptance gates, a GitHub
   progress workflow, and a reusable workstream issue template.
 - Community Scripts as a pinned, checksum-verified VM/LXC bootstrap accelerator beneath Homelab2's

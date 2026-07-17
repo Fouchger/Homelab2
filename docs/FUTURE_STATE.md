@@ -49,10 +49,9 @@ OpenTofu ownership or DockFlare ownership, never both.
 | System | Deployment | Initial sizing | Purpose |
 |---|---|---:|---|
 | `control01` | Unprivileged Ubuntu 24.04 LXC | 2 vCPU, 2 GiB RAM, 32 GiB | Homelab2, OpenTofu, Ansible, SOPS/age |
-| `dns-a` | Unprivileged Debian LXC | 1 vCPU, 512 MiB, 4-8 GiB | Primary Technitium DNS |
-| `dns-b` | Unprivileged Debian LXC | 1 vCPU, 512 MiB, 4-8 GiB | Secondary Technitium DNS |
-| `edge01` | Debian or Ubuntu VM with Docker Compose | 2-4 vCPU, 4 GiB, 40-60 GiB | Ingress, authentication, monitoring, dashboard |
-| `media01` | Debian or Ubuntu VM with Docker Compose | 6-8 vCPU, 12 GiB, 150 GiB | Plex, Immich, media application runtime, GPU owner |
+| `dns01` | Unprivileged Ubuntu 24.04 LXC | 1 vCPU, 1 GiB, 4-8 GiB | Technitium DNS |
+| `edge01` | Ubuntu 24.04 VM with Docker Compose | 2-4 vCPU, 4 GiB, 40-60 GiB | Ingress, authentication, monitoring, dashboard |
+| `media01` | Ubuntu 24.04 VM with Docker Compose | 6-8 vCPU, 10-12 GiB, 150 GiB | Plex, Immich, media application runtime, GPU owner |
 | `omv01` | Existing full VM | Existing 2 vCPU, 4 GiB, 32 GiB boot | Storage authority and backup destination |
 
 The exact VMIDs, MAC addresses, and unused IP addresses are allocated by the accepted site manifest
@@ -61,6 +60,44 @@ after collision checks. Replacement guests use new identities and do not reuse d
 `edge01` and `media01` are full VMs because Docker receives its own kernel and security boundary.
 The single physical GPU is passed to `media01`, where both Plex containers and Immich can share it.
 The GPU handover is a separately approved migration checkpoint.
+
+Ubuntu 24.04 LTS is the default for every new general-purpose VM and LXC. An exception is allowed
+only when the upstream application, an official appliance, or a reviewed Community Script has a
+documented compatibility or support advantage on another operating system. The site manifest must
+record the reason. Existing OpenMediaVault is an appliance exception and is not reinstalled.
+
+## VMID allocation
+
+All new Homelab2 resources use VMID 200 or greater. Existing discovered VMIDs are never reused,
+even after an old guest is manually retired. OpenMediaVault remains VMID 22000.
+
+| VMID range | Resource type | Initial allocation |
+|---:|---|---|
+| 200-219 | Control and management | `control01` = 201; 200 remains reserved by the discovered monitoring guest |
+| 220-239 | DNS and network core | `dns01` = 220 |
+| 240-299 | Edge, ingress, authentication, and operations | `edge01` = 240 |
+| 300-399 | Future storage and backup services | `omv01` remains the explicit VMID 22000 exception |
+| 400-499 | Media and photo platforms | `media01` = 400 |
+| 500-599 | General managed applications | Allocated by an approved application issue |
+| 600-699 | Dedicated monitoring and security services | Reserved for later separation from `edge01` |
+| 700-799 | Disposable validation and test guests | Never used for retained production data |
+| 800-899 | Future infrastructure expansion | Reserved |
+
+Every allocation is collision-checked against live Proxmox state before creation.
+
+## IP allocation
+
+The same host-number policy applies to every `/24` VLAN:
+
+| Host range | Policy |
+|---:|---|
+| `.1-.99` | Static infrastructure and server addresses only |
+| `.100-.200` | Reserved for migration, diagnostics, or future policy; not in a normal DHCP pool |
+| `.201-.254` | DHCP only, including optional DHCP reservations |
+
+Network `.0` and broadcast `.255` remain unusable. Existing assignments that do not yet follow the
+policy are migrated through a reviewed transition; they are not changed merely to make the numbers
+look consistent.
 
 ## Required application catalogue
 
@@ -72,7 +109,7 @@ The GPU handover is a separately approved migration checkpoint.
 | OpenTofu | `control01` | Locked Homelab2 dependency | Homelab2 |
 | Ansible | `control01` | Locked Homelab2 dependency | Homelab2 |
 | SOPS and age | `control01` | Checksum-pinned installer | Homelab2 |
-| Technitium DNS x2 | `dns-a`, `dns-b` | Pinned Community Scripts adapters | Homelab2 DNS adapter |
+| Technitium DNS | `dns01` | Pinned Community Scripts adapter | Homelab2 DNS adapter |
 
 ### Edge Docker stack
 
@@ -97,16 +134,17 @@ not require walking through the Deployrr installer again.
 
 | Container | Required purpose | Persistent-data boundary |
 |---|---|---|
-| `plex01` | First existing Plex service rebuilt into the managed structure | Local Plex database; OMV media read-only where possible |
-| `plex02` | Second existing Plex service rebuilt into the managed structure | Local Plex database; OMV media read-only where possible |
+| Plex | Existing Plex services consolidated into one managed service | Local Plex database; OMV media read-only where possible |
 | Immich server | Photo and video application | Local application state; OMV photo library if accepted |
 | Immich machine learning | Immich search and recognition | Rebuildable model cache |
 | PostgreSQL with Immich extensions | Immich database | Local Proxmox SSD only |
 | Redis/Valkey | Immich job and cache service | Local application storage |
 
-The two Plex identities remain separate until their accounts, users, libraries, watch state, remote
-access, and distinct purpose are documented. Their existing application data is restored into new
-containers rather than manually recreating libraries.
+The two existing Plex identities remain protected migration sources until their accounts, users,
+libraries, watch state, remote access, and distinct purpose are documented. The operator selects
+the canonical identity for the single future Plex service and explicitly identifies any required
+state from the other source. Both old Plex LXCs remain available until the consolidated service is
+accepted and the operator retires them manually.
 
 Immich uses its official Docker Compose architecture. Its PostgreSQL database never resides on an
 NFS or SMB share. The existing Immich LXC remains untouched until a database-and-media restore into
@@ -173,9 +211,27 @@ configuration, imports it into the matching OpenTofu resource, and requires a ze
 OpenTofu becomes lifecycle owner only after that acceptance succeeds. A failed or partially adopted
 guest is quarantined and reported; Homelab2 does not delete it automatically.
 
+## Rebuild-stable accounts and credentials
+
+Stable, non-secret account names are declared in the committed site manifest. Each service receives
+a unique password, token, or key stored in a SOPS-encrypted production secret bundle. Rebuilds
+decrypt and reuse the accepted value; they do not generate an unrelated password or reuse one
+universal homelab password.
+
+The encrypted bundle may be committed to GitHub. Plaintext passwords, tokens, recovery codes,
+private SSH keys, and the age private identity may not. The age private identity is stored on
+`control01` with an encrypted offline recovery copy outside GitHub. Application databases are still
+backed up because restoring a database often preserves user IDs, password hashes, sessions, and
+application-owned account metadata that cannot be reconstructed from a bootstrap password alone.
+
+The repository should be private before the production topology and encrypted production bundle
+are merged. Private visibility limits who can read the design, but all secret rules remain exactly
+the same. GitHub Actions secrets are reserved for CI needs and are not the primary production
+credential store or rebuild mechanism.
+
 ## Capacity guardrail
 
-The target allocations consume approximately 23-25 GiB before temporary migration guests and
+The target allocations consume approximately 21-23 GiB before temporary migration guests and
 Proxmox overhead. Phase 6 must measure actual and peak memory use before each build and preserve a
 host reserve. `media01` is not created if the admission check predicts unsafe memory pressure.
 Increasing the server to 64 GiB is recommended before adding optional applications or full metrics

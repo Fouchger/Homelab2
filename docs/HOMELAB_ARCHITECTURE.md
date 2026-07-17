@@ -37,6 +37,27 @@ The existing VLAN and address structure is retained as the starting contract.
 The Proxmox VLAN-aware bridge carries VLANs 20, 30, and 70. The Proxmox host remains at
 `192.168.20.10`. RouterOS owns gateways, DHCP, Wi-Fi, routing, NAT, and the inter-VLAN firewall.
 
+Static infrastructure and server addresses use host numbers `.1-.99`. Host numbers `.100-.200`
+are reserved outside normal pools. DHCP uses `.201-.254`. Existing assignments are transitioned
+only through reviewed, non-disruptive changes.
+
+## Managed VMID groups
+
+All new guests start at VMID 200 and are grouped by responsibility. Discovered VMIDs are protected
+and never reused. `omv01` remains VMID 22000.
+
+| VMID range | Type | Planned resource |
+|---:|---|---|
+| 200-219 | Control and management | `control01` = 201 |
+| 220-239 | DNS and network core | `dns01` = 220 |
+| 240-299 | Edge and operations | `edge01` = 240 |
+| 300-399 | Storage and backup | Reserved; `omv01` stays 22000 |
+| 400-499 | Media and photos | `media01` = 400 |
+| 500-599 | General applications | Future managed applications |
+| 600-699 | Monitoring and security | Reserved |
+| 700-799 | Disposable validation | Test guests only |
+| 800-899 | Infrastructure expansion | Reserved |
+
 ## Retained workloads
 
 Only the following existing workloads cross the clean-build boundary.
@@ -70,16 +91,16 @@ GPU render-device access, NFS/CIFS support, and optional serial/USB device bindi
 mounts are expected to be configured inside the containers and must be inventoried before any
 OpenMediaVault or network change.
 
-The current Plex LXCs are protected migration sources. The future target is two separate Plex
-containers in the managed `media01` Docker VM, preserving their separate identities and sharing the
-single passed-through GPU. They are rebuilt one at a time from verified application-data backups.
+The current Plex LXCs are protected migration sources. The future target is one Plex container in
+the managed `media01` Docker VM. Both sources are inventoried and backed up, then the operator
+selects the canonical identity and required state to consolidate. The single passed-through GPU is
+shared inside `media01` with Immich.
 
 The intended startup dependency is:
 
 1. core DNS;
 2. `omv01`;
-3. `plex01` after storage is available; and
-4. `plex02` after storage is available.
+3. the managed Plex service after storage is available.
 
 ### Immich boundary
 
@@ -128,7 +149,7 @@ The clean build proceeds in dependency order.
    firewall, NAT, NTP, and encrypted recovery backups.
 2. **Platform foundation:** Proxmox host validation, trusted TLS, VLAN-aware bridge, storage
    boundaries, API identity, and a replacement control-plane container.
-3. **Core services:** two freshly configured internal DNS servers, forward and reverse zones, and
+3. **Core services:** one freshly configured internal DNS server, forward and reverse zones, and
    explicit public/private DNS ownership.
 4. **Preserved services:** adopt and validate `omv01`, `plex01`, `plex02`, and `immich` without
    changing their lifecycle or data; rebuild Immich only after restore acceptance.
