@@ -1,0 +1,512 @@
+{
+  "$defs": {
+    "AddressPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "static_first": {
+          "const": 1,
+          "default": 1,
+          "title": "Static First",
+          "type": "integer"
+        },
+        "static_last": {
+          "const": 99,
+          "default": 99,
+          "title": "Static Last",
+          "type": "integer"
+        },
+        "reserved_first": {
+          "const": 100,
+          "default": 100,
+          "title": "Reserved First",
+          "type": "integer"
+        },
+        "reserved_last": {
+          "const": 200,
+          "default": 200,
+          "title": "Reserved Last",
+          "type": "integer"
+        },
+        "dhcp_first": {
+          "const": 201,
+          "default": 201,
+          "title": "Dhcp First",
+          "type": "integer"
+        },
+        "dhcp_last": {
+          "const": 254,
+          "default": 254,
+          "title": "Dhcp Last",
+          "type": "integer"
+        }
+      },
+      "title": "AddressPolicy",
+      "type": "object"
+    },
+    "ApplicationManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "guest": {
+          "title": "Guest",
+          "type": "string"
+        },
+        "runtime": {
+          "enum": [
+            "native",
+            "docker-compose"
+          ],
+          "title": "Runtime",
+          "type": "string"
+        },
+        "owner": {
+          "enum": [
+            "homelab2",
+            "docker-compose",
+            "manual-protection"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "stateful": {
+          "default": false,
+          "title": "Stateful",
+          "type": "boolean"
+        },
+        "credential": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential"
+        }
+      },
+      "required": [
+        "key",
+        "guest",
+        "runtime",
+        "owner"
+      ],
+      "title": "ApplicationManifest",
+      "type": "object"
+    },
+    "BackupManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "application": {
+          "title": "Application",
+          "type": "string"
+        },
+        "destination": {
+          "maxLength": 128,
+          "minLength": 2,
+          "title": "Destination",
+          "type": "string"
+        },
+        "schedule": {
+          "maxLength": 128,
+          "minLength": 3,
+          "title": "Schedule",
+          "type": "string"
+        },
+        "restore_test": {
+          "maxLength": 240,
+          "minLength": 3,
+          "title": "Restore Test",
+          "type": "string"
+        }
+      },
+      "required": [
+        "application",
+        "destination",
+        "schedule",
+        "restore_test"
+      ],
+      "title": "BackupManifest",
+      "type": "object"
+    },
+    "CapacityPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "host_memory_mb": {
+          "minimum": 1024,
+          "title": "Host Memory Mb",
+          "type": "integer"
+        },
+        "existing_peak_memory_mb": {
+          "minimum": 0,
+          "title": "Existing Peak Memory Mb",
+          "type": "integer"
+        },
+        "reserve_memory_mb": {
+          "default": 4096,
+          "minimum": 1024,
+          "title": "Reserve Memory Mb",
+          "type": "integer"
+        },
+        "available_storage_gb": {
+          "minimum": 1,
+          "title": "Available Storage Gb",
+          "type": "integer"
+        },
+        "reserve_storage_gb": {
+          "default": 32,
+          "minimum": 1,
+          "title": "Reserve Storage Gb",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "host_memory_mb",
+        "existing_peak_memory_mb",
+        "available_storage_gb"
+      ],
+      "title": "CapacityPolicy",
+      "type": "object"
+    },
+    "CredentialManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "username": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Username",
+          "type": "string"
+        },
+        "secret_ref": {
+          "title": "Secret Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "username",
+        "secret_ref"
+      ],
+      "title": "CredentialManifest",
+      "type": "object"
+    },
+    "ExposureManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "application": {
+          "title": "Application",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "internal",
+            "wireguard",
+            "cloudflare-access",
+            "plex-remote"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "owner": {
+          "enum": [
+            "mikrotik",
+            "traefik",
+            "dockflare",
+            "plex"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "approved": {
+          "default": false,
+          "title": "Approved",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "application",
+        "mode",
+        "owner"
+      ],
+      "title": "ExposureManifest",
+      "type": "object"
+    },
+    "GuestManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "vm_id": {
+          "maximum": 999999999,
+          "minimum": 100,
+          "title": "Vm Id",
+          "type": "integer"
+        },
+        "hostname": {
+          "title": "Hostname",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "lxc",
+            "vm",
+            "appliance"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "control",
+            "network-core",
+            "edge",
+            "storage",
+            "media",
+            "application",
+            "monitoring-security",
+            "test",
+            "expansion"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "lifecycle": {
+          "default": "new",
+          "enum": [
+            "new",
+            "adopted",
+            "protected-existing"
+          ],
+          "title": "Lifecycle",
+          "type": "string"
+        },
+        "protected": {
+          "default": false,
+          "title": "Protected",
+          "type": "boolean"
+        },
+        "owner": {
+          "default": "opentofu",
+          "enum": [
+            "opentofu",
+            "manual-protection"
+          ],
+          "title": "Owner",
+          "type": "string"
+        },
+        "network": {
+          "title": "Network",
+          "type": "string"
+        },
+        "address": {
+          "format": "ipv4interface",
+          "title": "Address",
+          "type": "string"
+        },
+        "os_name": {
+          "default": "ubuntu",
+          "title": "Os Name",
+          "type": "string"
+        },
+        "os_version": {
+          "default": "24.04",
+          "title": "Os Version",
+          "type": "string"
+        },
+        "os_exception_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Os Exception Reason"
+        },
+        "resources": {
+          "$ref": "#/$defs/GuestResources"
+        },
+        "raw_disk_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Raw Disk Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "vm_id",
+        "hostname",
+        "kind",
+        "role",
+        "network",
+        "address",
+        "resources"
+      ],
+      "title": "GuestManifest",
+      "type": "object"
+    },
+    "GuestResources": {
+      "additionalProperties": false,
+      "properties": {
+        "cores": {
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Cores",
+          "type": "integer"
+        },
+        "memory_mb": {
+          "maximum": 1048576,
+          "minimum": 256,
+          "title": "Memory Mb",
+          "type": "integer"
+        },
+        "disk_gb": {
+          "maximum": 16384,
+          "minimum": 1,
+          "title": "Disk Gb",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cores",
+        "memory_mb",
+        "disk_gb"
+      ],
+      "title": "GuestResources",
+      "type": "object"
+    },
+    "NetworkManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "vlan_id": {
+          "maximum": 4094,
+          "minimum": 1,
+          "title": "Vlan Id",
+          "type": "integer"
+        },
+        "cidr": {
+          "format": "ipv4network",
+          "title": "Cidr",
+          "type": "string"
+        },
+        "gateway": {
+          "format": "ipv4",
+          "title": "Gateway",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 120,
+          "minLength": 3,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "owner": {
+          "const": "mikrotik",
+          "default": "mikrotik",
+          "title": "Owner",
+          "type": "string"
+        },
+        "address_policy": {
+          "$ref": "#/$defs/AddressPolicy"
+        }
+      },
+      "required": [
+        "key",
+        "vlan_id",
+        "cidr",
+        "gateway",
+        "purpose"
+      ],
+      "title": "NetworkManifest",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "site": {
+      "default": "homelab",
+      "title": "Site",
+      "type": "string"
+    },
+    "networks": {
+      "items": {
+        "$ref": "#/$defs/NetworkManifest"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Networks",
+      "type": "array"
+    },
+    "guests": {
+      "items": {
+        "$ref": "#/$defs/GuestManifest"
+      },
+      "maxItems": 200,
+      "minItems": 1,
+      "title": "Guests",
+      "type": "array"
+    },
+    "credentials": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CredentialManifest"
+      },
+      "maxProperties": 200,
+      "title": "Credentials",
+      "type": "object"
+    },
+    "applications": {
+      "items": {
+        "$ref": "#/$defs/ApplicationManifest"
+      },
+      "maxItems": 300,
+      "title": "Applications",
+      "type": "array"
+    },
+    "exposures": {
+      "items": {
+        "$ref": "#/$defs/ExposureManifest"
+      },
+      "maxItems": 300,
+      "title": "Exposures",
+      "type": "array"
+    },
+    "backups": {
+      "items": {
+        "$ref": "#/$defs/BackupManifest"
+      },
+      "maxItems": 300,
+      "title": "Backups",
+      "type": "array"
+    },
+    "capacity": {
+      "$ref": "#/$defs/CapacityPolicy"
+    }
+  },
+  "required": [
+    "networks",
+    "guests",
+    "capacity"
+  ],
+  "title": "HomelabManifest",
+  "type": "object"
+}

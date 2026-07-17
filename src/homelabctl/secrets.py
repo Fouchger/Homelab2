@@ -12,9 +12,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import Field, SecretStr, ValidationError, field_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 
 from homelabctl.configuration import find_project_root
+from homelabctl.manifest import HomelabManifest
 from homelabctl.models import HomelabConfig, StrictModel
 
 SECRETS_ENV_VAR = "HOMELAB_SECRETS"
@@ -49,12 +50,38 @@ class ProviderSecret(StrictModel):
         return normalized
 
 
+class ServiceSecret(StrictModel):
+    """One rebuild-stable service password, token, claim, or key."""
+
+    value: SecretStr = Field(description="Unique encrypted service credential")
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def validate_value(cls, value: Any) -> str:
+        if not isinstance(value, str) or len(value.strip()) < 12:
+            raise ValueError("must contain a non-placeholder value of at least 12 characters")
+        normalized = value.strip()
+        if normalized in PLACEHOLDER_VALUES or normalized.startswith("replace-with-"):
+            raise ValueError("still contains a generated placeholder")
+        return normalized
+
+
 class SecretBundle(StrictModel):
     """Strict decrypted shape for provisioning credentials."""
 
     schema_version: Literal[1] = 1
     proxmox: ProviderSecret
     cloudflare: ProviderSecret | None = None
+    credentials: dict[str, ServiceSecret] = Field(default_factory=dict, max_length=200)
+
+    @model_validator(mode="after")
+    def require_unique_service_values(self) -> SecretBundle:
+        values = [secret.value.get_secret_value() for secret in self.credentials.values()]
+        if len(values) != len(set(values)):
+            raise ValueError(
+                "service credentials must be unique; universal passwords are forbidden"
+            )
+        return self
 
     def provider_environment(self) -> dict[str, str]:
         """Return the minimal environment expected by infrastructure providers."""
@@ -102,6 +129,15 @@ def _read_encrypted_mapping(path: Path) -> dict[str, Any]:
     _require_encrypted_token(raw, "proxmox")
     if "cloudflare" in raw:
         _require_encrypted_token(raw, "cloudflare")
+    credentials = raw.get("credentials", {})
+    if not isinstance(credentials, dict):
+        raise SecretError("Refusing secret file with an invalid credentials mapping")
+    for key, section in credentials.items():
+        value = section.get("value") if isinstance(section, dict) else None
+        if not isinstance(key, str) or not isinstance(value, str) or not value.startswith("ENC["):
+            raise SecretError(
+                f"Refusing secret file with an unencrypted or invalid credentials.{key}.value"
+            )
     return raw
 
 
@@ -125,6 +161,7 @@ def load_secrets(
     path: str | Path | None = None,
     *,
     config: HomelabConfig | None = None,
+    manifest: HomelabManifest | None = None,
     sops_executable: str | None = None,
 ) -> SecretBundle:
     """Decrypt and validate a SOPS YAML document without writing plaintext to disk."""
@@ -144,6 +181,13 @@ def load_secrets(
         raise SecretError(
             "Decrypted secrets must include cloudflare.api_token when DNS records are configured"
         )
+    if manifest is not None:
+        required = {credential.bundle_key for credential in manifest.credentials.values()}
+        missing = sorted(required - set(bundle.credentials))
+        if missing:
+            raise SecretError(
+                "Decrypted secrets are missing required service credentials: " + ", ".join(missing)
+            )
     return bundle
 
 

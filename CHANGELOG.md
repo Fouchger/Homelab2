@@ -15,6 +15,11 @@ All notable changes to this project are documented in this file.
   progress workflow, and a reusable workstream issue template.
 - Community Scripts as a pinned, checksum-verified VM/LXC bootstrap accelerator beneath Homelab2's
   unattended orchestration and no-destroy safety boundary.
+- A versioned whole-site manifest and generated JSON Schema covering networks, guests,
+  applications, exposure, backup, ownership, stable credential references, and capacity.
+- A provider-independent safety engine that refuses destructive discovered-resource plans,
+  VMID/address collisions, unsafe capacity pressure, incomplete immutable identifiers, and
+  secret-bearing evidence before provider execution.
 
 ## [0.4.0] - 2026-07-17
 

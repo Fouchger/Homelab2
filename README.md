@@ -34,6 +34,8 @@ The accepted whole-homelab target is documented in
 [`docs/FUTURE_STATE.md`](docs/FUTURE_STATE.md). The GitHub-tracked Phase 6 build sequence and its
 acceptance gates are documented in
 [`docs/PHASE_6_EXECUTION_PLAN.md`](docs/PHASE_6_EXECUTION_PLAN.md).
+The machine-validated target and no-destroy contracts are described in
+[`docs/PHASE_6_SAFETY.md`](docs/PHASE_6_SAFETY.md).
 
 ## Quick start
 
@@ -119,6 +121,10 @@ The configuration structure is documented in
 [`config/examples/site.yaml`](config/examples/site.yaml). The generated JSON Schema is stored at
 `config/schema/site.schema.json`.
 
+The separate Phase 6 whole-site model is committed at
+[`config/examples/future-state.yaml`](config/examples/future-state.yaml), with its generated schema
+at `config/schema/future-state.schema.json`. It does not change live infrastructure.
+
 ## Common tasks
 
 ```text
@@ -143,6 +149,7 @@ task ansible:apply           Apply the reviewed guest baseline
 task applications:plan      Show curated application revisions and checksums
 task applications:check     Preview curated application changes
 task applications:apply     Apply and health-check curated applications
+task manifest:validate      Validate the complete Phase 6 future state without resolving secrets
 task check             Run formatting, linting, tests, and config validation
 ```
 

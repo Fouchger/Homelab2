@@ -156,9 +156,15 @@ tasks:
       - tofu -chdir=infrastructure plan -refresh=false -lock=false -input=false -var-file=example.tfvars.json -out=example.tfplan
 
   schema:
-    desc: Regenerate the site JSON Schema
+    desc: Regenerate the legacy site and Phase 6 manifest JSON Schemas
     cmds:
       - uv run --locked --no-dev homelabctl schema --output config/schema/site.schema.json
+      - uv run --locked --no-dev homelabctl manifest schema --output config/schema/future-state.schema.json
+
+  manifest:validate:
+    desc: Validate the Phase 6 whole-site manifest without resolving secrets
+    cmds:
+      - uv run --locked --no-dev homelabctl manifest validate --file config/examples/future-state.yaml
 
   test:
     desc: Run the automated test suite
@@ -179,4 +185,5 @@ tasks:
       - task: config:validate
         vars:
           CONFIG: config/examples/site.yaml
+      - task: manifest:validate
       - task: tofu:ci
