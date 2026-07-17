@@ -28,6 +28,7 @@ from homelabctl.configuration import (
     resolve_config_path,
     write_schema,
 )
+from homelabctl.discovery import DiscoveryError, write_read_only_evidence
 from homelabctl.doctor import checks_succeeded, run_checks
 from homelabctl.manifest import ManifestError, load_manifest, write_manifest_schema
 from homelabctl.operations import prepare_automation_ssh
@@ -222,6 +223,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     manifest_schema.add_argument(
         "--output", type=Path, default=Path("config/schema/future-state.schema.json")
+    )
+
+    discovery = subcommands.add_parser(
+        "discovery", help="validate ignored snapshots and produce sanitized read-only evidence"
+    )
+    discovery_commands = discovery.add_subparsers(dest="discovery_command", required=True)
+    discovery_evidence = discovery_commands.add_parser(
+        "evidence", help="run non-mutating collision and capacity admission"
+    )
+    discovery_evidence.add_argument("--manifest", type=Path, required=True)
+    discovery_evidence.add_argument("--proxmox-snapshot", type=Path, required=True)
+    discovery_evidence.add_argument("--router-snapshot", type=Path, required=True)
+    discovery_evidence.add_argument(
+        "--output", type=Path, default=Path("artifacts/discovery-admission.json")
     )
 
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
@@ -472,6 +487,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             path = write_manifest_schema(args.output)
             console.print(f"[green]Wrote whole-site schema:[/] {path}")
             return 0
+        if command == "discovery" and args.discovery_command == "evidence":
+            path = write_read_only_evidence(
+                args.manifest,
+                args.proxmox_snapshot,
+                args.router_snapshot,
+                args.output,
+            )
+            console.print(f"[green]Wrote sanitized read-only evidence:[/] {path}")
+            console.print("[yellow]No production mutation was performed.[/]")
+            return 0
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
@@ -481,6 +506,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         AnsibleSetupError,
         ApplicationError,
         ConfigurationError,
+        DiscoveryError,
         ManifestError,
         ProxmoxBootstrapError,
         SecretError,

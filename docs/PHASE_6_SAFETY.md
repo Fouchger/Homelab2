@@ -30,3 +30,9 @@ mutation. Evidence rejects common secret-bearing fields.
 
 For Phase 6.0, validation uses synthetic discovery fixtures only. Live router and Proxmox access
 remains read-only, and no existing guest is stopped, deleted, detached, or replaced.
+
+Ignored discovery snapshots can be parsed into local read-only admission evidence. Parsing fails
+if a secret-shaped assignment is present. Exact discovered VMIDs, addresses, raw-disk identifiers,
+hostnames, and MAC addresses remain in memory only; output records source hashes, resource counts,
+admission status, and generic refusal categories. This permits review without publishing the
+production topology.

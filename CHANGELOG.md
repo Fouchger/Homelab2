@@ -20,6 +20,8 @@ All notable changes to this project are documented in this file.
 - A provider-independent safety engine that refuses destructive discovered-resource plans,
   VMID/address collisions, unsafe capacity pressure, incomplete immutable identifiers, and
   secret-bearing evidence before provider execution.
+- Fail-closed discovery redaction for quoted multiline RouterOS values and a local read-only
+  evidence workflow that retains exact production identifiers only in memory.
 
 ## [0.4.0] - 2026-07-17
 
