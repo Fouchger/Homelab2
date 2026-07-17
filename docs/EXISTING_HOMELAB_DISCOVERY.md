@@ -16,7 +16,10 @@ the live design before any managed change is proposed.
 
 RouterOS hides sensitive values in a normal export. The collector uses the normal `/export`
 command without `show-sensitive` and performs an additional local redaction pass. This provides
-useful defence in depth, but operator review remains required.
+useful defence in depth, but operator review remains required. The current collector redacts
+quoted multiline values and fails closed if a secret-shaped assignment survives. Snapshots made
+with an older collector must not be shared merely because their filename contains `redacted`;
+rerun the current collector and review the new output.
 
 ## Prerequisites
 
@@ -55,6 +58,21 @@ Output is written below `discovery-output/<timestamp>/` and contains:
   service state.
 
 Failed SSH collection is recorded in the corresponding output file without changing the target.
+
+## Create local read-only evidence
+
+After a successful collection, run admission checks without reconnecting to either device:
+
+```powershell
+uv run homelabctl discovery evidence `
+    --manifest config/examples/future-state.yaml `
+    --proxmox-snapshot discovery-output/<timestamp>/proxmox-redacted.txt `
+    --router-snapshot discovery-output/<timestamp>/mikrotik-runtime-redacted.txt `
+    --output artifacts/discovery-admission.json
+```
+
+The evidence contains hashes and counts only. Exact VMIDs, addresses, MACs, disk serials, SSIDs,
+hostnames, and secret values are not written to the evidence file. `artifacts/` remains ignored.
 
 ## Adoption sequence
 

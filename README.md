@@ -150,6 +150,7 @@ task applications:plan      Show curated application revisions and checksums
 task applications:check     Preview curated application changes
 task applications:apply     Apply and health-check curated applications
 task manifest:validate      Validate the complete Phase 6 future state without resolving secrets
+uv run homelabctl discovery evidence ...  Create ignored, sanitized read-only admission evidence
 task check             Run formatting, linting, tests, and config validation
 ```
 

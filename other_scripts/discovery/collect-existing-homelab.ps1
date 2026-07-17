@@ -29,16 +29,13 @@ function Write-Section {
 function Protect-DiscoveryText {
     param([AllowEmptyString()][string]$Text)
 
-    # RouterOS exports hide sensitive values by default. These replacements are a
-    # second line of defence for output from other read-only commands.
+    # RouterOS normal exports can still contain explicitly configured script
+    # arguments such as binary-backup passwords. Redact quoted values first so
+    # RouterOS backslash-newline continuations cannot leave a partial secret.
+    $secretName = '(?:password|passphrase|pre-shared-key|private-key|secret|token|community)'
     $patterns = @(
-        '(?im)(password\s*[=:]\s*)\S+',
-        '(?im)(passphrase\s*[=:]\s*)\S+',
-        '(?im)(pre-shared-key\s*[=:]\s*)\S+',
-        '(?im)(private-key\s*[=:]\s*)\S+',
-        '(?im)(secret\s*[=:]\s*)\S+',
-        '(?im)(token\s*[=:]\s*)\S+',
-        '(?im)(community\s*[=:]\s*)\S+'
+        ('(?ims)(\b' + $secretName + '\s*[=:]\s*)"(?:\\\r?\n\s*|[^"])*"'),
+        ('(?im)(\b' + $secretName + '\s*[=:]\s*)[^\s;]+')
     )
 
     $protected = $Text
@@ -46,6 +43,19 @@ function Protect-DiscoveryText {
         $protected = [regex]::Replace($protected, $pattern, '$1<redacted>')
     }
     return $protected
+}
+
+function Assert-DiscoveryTextSafe {
+    param(
+        [AllowEmptyString()][string]$Text,
+        [string]$Label
+    )
+
+    $secretName = '(?:password|passphrase|pre-shared-key|private-key|secret|token|community)'
+    $unsafePattern = '(?im)\b' + $secretName + '\s*[=:]\s*(?!<redacted>)(?:"|[^\s])'
+    if ([regex]::IsMatch($Text, $unsafePattern)) {
+        throw "Refusing to write $Label because a secret-shaped value remains after redaction."
+    }
 }
 
 function Invoke-DiscoverySsh {
@@ -83,8 +93,9 @@ function Invoke-DiscoverySsh {
         Write-Warning "Collection from $Target failed. See $Destination."
     }
 
-    Protect-DiscoveryText -Text $text |
-        Set-Content -LiteralPath $Destination -Encoding utf8
+    $protectedText = Protect-DiscoveryText -Text $text
+    Assert-DiscoveryTextSafe -Text $protectedText -Label $Destination
+    $protectedText | Set-Content -LiteralPath $Destination -Encoding utf8
 }
 
 if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
@@ -120,8 +131,10 @@ $windowsOutput += (Get-NetRoute -AddressFamily IPv4 |
     Select-Object DestinationPrefix, NextHop, InterfaceAlias, RouteMetric |
     Sort-Object DestinationPrefix, RouteMetric |
     Format-Table -AutoSize | Out-String)
-Protect-DiscoveryText -Text ($windowsOutput -join "`n") |
-    Set-Content -LiteralPath (Join-Path $resolvedOutput "windows-network.txt") -Encoding utf8
+$protectedWindowsOutput = Protect-DiscoveryText -Text ($windowsOutput -join "`n")
+$windowsDestination = Join-Path $resolvedOutput "windows-network.txt"
+Assert-DiscoveryTextSafe -Text $protectedWindowsOutput -Label $windowsDestination
+$protectedWindowsOutput | Set-Content -LiteralPath $windowsDestination -Encoding utf8
 
 Write-Section "Collecting a secret-free MikroTik export"
 $routerExportCommand = '/export'
@@ -211,7 +224,8 @@ Files:
 Safety:
 - Collection commands are read-only.
 - RouterOS normal export redaction was used; show-sensitive was not requested.
-- Common secret-shaped fields were redacted again locally.
+- Quoted, multiline, and unquoted secret-shaped fields were redacted again locally.
+- Collection refuses to write a file if a secret-shaped assignment survives redaction.
 - Review every file before sharing it. IP addresses, hostnames, public addresses,
   interface names, and hardware details may remain because they are needed to
   reconstruct the topology.
