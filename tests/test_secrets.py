@@ -7,11 +7,14 @@ from unittest.mock import Mock
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from homelabctl.cli import main
 from homelabctl.configuration import save_config
+from homelabctl.manifest import load_manifest
 from homelabctl.models import HomelabConfig, default_config
 from homelabctl.secrets import (
+    SecretBundle,
     SecretError,
     ensure_age_identity,
     initialize_secret_file,
@@ -181,6 +184,39 @@ def test_cloudflare_token_is_not_required_for_an_empty_record_set(
     bundle = load_secrets(path, config=config, sops_executable="sops")
 
     assert bundle.cloudflare is None
+
+
+def test_manifest_requires_every_rebuild_stable_service_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_encrypted_file(tmp_path / "secrets.enc.yaml", cloudflare=False)
+    monkeypatch.setattr(
+        "homelabctl.secrets.subprocess.run",
+        lambda *args, **kwargs: completed_decryption(cloudflare=False),
+    )
+    manifest = load_manifest(
+        Path(__file__).parents[1] / "config" / "examples" / "future-state.yaml"
+    )
+
+    with pytest.raises(SecretError, match="technitium-admin"):
+        load_secrets(path, manifest=manifest, sops_executable="sops")
+
+
+def test_service_credentials_must_be_unique_and_stay_redacted() -> None:
+    data = {
+        "schema_version": 1,
+        "proxmox": {"api_token": TOKEN},
+        "credentials": {
+            "plex-admin": {"value": "one-unique-service-value"},
+            "immich-admin": {"value": "another-service-value"},
+        },
+    }
+    bundle = SecretBundle.model_validate(data)
+
+    assert "one-unique-service-value" not in repr(bundle)
+    data["credentials"]["immich-admin"]["value"] = "one-unique-service-value"
+    with pytest.raises(ValidationError, match="universal passwords are forbidden"):
+        SecretBundle.model_validate(data)
 
 
 def test_initialize_encrypts_template_before_writing(

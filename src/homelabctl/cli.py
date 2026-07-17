@@ -29,6 +29,7 @@ from homelabctl.configuration import (
     write_schema,
 )
 from homelabctl.doctor import checks_succeeded, run_checks
+from homelabctl.manifest import ManifestError, load_manifest, write_manifest_schema
 from homelabctl.operations import prepare_automation_ssh
 from homelabctl.proxmox_bootstrap import (
     DEFAULT_ROLE_ID,
@@ -207,6 +208,21 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         application_command = application_commands.add_parser(name, help=help_text)
         _add_config_argument(application_command)
+
+    manifest = subcommands.add_parser("manifest", help="validate the Phase 6 whole-site manifest")
+    manifest_commands = manifest.add_subparsers(dest="manifest_command", required=True)
+    manifest_validate = manifest_commands.add_parser(
+        "validate", help="validate the whole-site manifest without resolving secrets"
+    )
+    manifest_validate.add_argument(
+        "--file", type=Path, default=Path("config/examples/future-state.yaml")
+    )
+    manifest_schema = manifest_commands.add_parser(
+        "schema", help="write the JSON Schema for the whole-site manifest"
+    )
+    manifest_schema.add_argument(
+        "--output", type=Path, default=Path("config/schema/future-state.schema.json")
+    )
 
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
     schema.add_argument("--output", type=Path, default=Path("config/schema/site.schema.json"))
@@ -445,6 +461,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _ansible(args, console)
         if command == "applications":
             return _applications(args, console)
+        if command == "manifest" and args.manifest_command == "validate":
+            manifest = load_manifest(args.file)
+            console.print(
+                f"[green]Valid whole-site manifest[/] | {manifest.site} | "
+                f"{len(manifest.guests)} guests | {args.file}"
+            )
+            return 0
+        if command == "manifest" and args.manifest_command == "schema":
+            path = write_manifest_schema(args.output)
+            console.print(f"[green]Wrote whole-site schema:[/] {path}")
+            return 0
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
@@ -454,6 +481,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         AnsibleSetupError,
         ApplicationError,
         ConfigurationError,
+        ManifestError,
         ProxmoxBootstrapError,
         SecretError,
         TofuError,

@@ -54,12 +54,15 @@ jobs:
         run: uv run --locked pytest
 
       - name: Validate example configuration
-        run: uv run --locked homelabctl validate --config config/examples/site.yaml
+        run: |
+          uv run --locked homelabctl validate --config config/examples/site.yaml
+          uv run --locked homelabctl manifest validate --file config/examples/future-state.yaml
 
       - name: Verify generated schema is current
         run: |
           uv run --locked homelabctl schema --output config/schema/site.schema.json
-          git diff --exit-code -- config/schema/site.schema.json
+          uv run --locked homelabctl manifest schema --output config/schema/future-state.schema.json
+          git diff --exit-code -- config/schema/site.schema.json config/schema/future-state.schema.json
 
       - name: Check OpenTofu foundation and example plan
         run: |

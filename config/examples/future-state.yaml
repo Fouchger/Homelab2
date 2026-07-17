@@ -1,0 +1,115 @@
+schema_version: 1
+site: homelab
+networks:
+  - key: management
+    vlan_id: 20
+    cidr: 192.168.20.0/24
+    gateway: 192.168.20.1
+    purpose: Administrative access to managed systems
+  - key: servers
+    vlan_id: 30
+    cidr: 192.168.30.0/24
+    gateway: 192.168.30.1
+    purpose: Published internal application services
+  - key: storage
+    vlan_id: 70
+    cidr: 192.168.70.0/24
+    gateway: 192.168.70.1
+    purpose: Storage and backup traffic
+guests:
+  - key: control01
+    vm_id: 201
+    hostname: control01
+    kind: lxc
+    role: control
+    network: management
+    address: 192.168.20.11/24
+    resources: {cores: 2, memory_mb: 2048, disk_gb: 32}
+  - key: dns01
+    vm_id: 220
+    hostname: dns01
+    kind: lxc
+    role: network-core
+    network: servers
+    address: 192.168.30.53/24
+    resources: {cores: 1, memory_mb: 1024, disk_gb: 8}
+  - key: edge01
+    vm_id: 240
+    hostname: edge01
+    kind: vm
+    role: edge
+    network: servers
+    address: 192.168.30.20/24
+    resources: {cores: 4, memory_mb: 4096, disk_gb: 60}
+  - key: media01
+    vm_id: 400
+    hostname: media01
+    kind: vm
+    role: media
+    network: servers
+    address: 192.168.30.40/24
+    resources: {cores: 8, memory_mb: 12288, disk_gb: 150}
+  - key: omv01
+    vm_id: 22000
+    hostname: omv01
+    kind: appliance
+    role: storage
+    lifecycle: protected-existing
+    protected: true
+    owner: manual-protection
+    network: storage
+    address: 192.168.70.10/24
+    os_name: openmediavault
+    os_version: existing
+    os_exception_reason: Existing storage appliance remains the sole raw-disk owner
+    resources: {cores: 2, memory_mb: 4096, disk_gb: 32}
+    raw_disk_ids:
+      - omv-data-disk-1
+      - omv-data-disk-2
+      - omv-data-disk-3
+      - omv-data-disk-4
+      - omv-data-disk-5
+credentials:
+  technitium-admin: {username: homelab-admin, secret_ref: sops://credentials.technitium-admin.value}
+  authelia-admin: {username: homelab-admin, secret_ref: sops://credentials.authelia-admin.value}
+  plex-admin: {username: plex-owner, secret_ref: sops://credentials.plex-admin.value}
+  immich-admin: {username: homelab-admin, secret_ref: sops://credentials.immich-admin.value}
+applications:
+  - {key: homelab2, guest: control01, runtime: native, owner: homelab2}
+  - {key: opentofu, guest: control01, runtime: native, owner: homelab2}
+  - {key: ansible, guest: control01, runtime: native, owner: homelab2}
+  - {key: technitium, guest: dns01, runtime: native, owner: homelab2, stateful: true, credential: technitium-admin}
+  - {key: socket-proxy, guest: edge01, runtime: docker-compose, owner: docker-compose}
+  - {key: traefik, guest: edge01, runtime: docker-compose, owner: docker-compose}
+  - {key: dockflare, guest: edge01, runtime: docker-compose, owner: docker-compose, stateful: true}
+  - {key: cloudflared, guest: edge01, runtime: docker-compose, owner: docker-compose}
+  - {key: authelia, guest: edge01, runtime: docker-compose, owner: docker-compose, stateful: true, credential: authelia-admin}
+  - {key: crowdsec, guest: edge01, runtime: docker-compose, owner: docker-compose, stateful: true}
+  - {key: uptime-kuma, guest: edge01, runtime: docker-compose, owner: docker-compose, stateful: true}
+  - {key: homepage, guest: edge01, runtime: docker-compose, owner: docker-compose}
+  - {key: dozzle, guest: edge01, runtime: docker-compose, owner: docker-compose}
+  - {key: plex, guest: media01, runtime: docker-compose, owner: docker-compose, stateful: true, credential: plex-admin}
+  - {key: immich, guest: media01, runtime: docker-compose, owner: docker-compose, stateful: true, credential: immich-admin}
+  - {key: immich-db, guest: media01, runtime: docker-compose, owner: docker-compose, stateful: true}
+exposures:
+  - {application: homelab2, mode: wireguard, owner: mikrotik}
+  - {application: technitium, mode: wireguard, owner: mikrotik}
+  - {application: uptime-kuma, mode: internal, owner: traefik}
+  - {application: plex, mode: internal, owner: traefik}
+  - {application: plex, mode: plex-remote, owner: plex, approved: true}
+  - {application: immich, mode: internal, owner: traefik}
+backups:
+  - {application: technitium, destination: omv01/dns, schedule: daily, restore_test: Restore into an isolated DNS instance quarterly}
+  - {application: dockflare, destination: omv01/edge, schedule: daily, restore_test: Reconcile an isolated tunnel configuration quarterly}
+  - {application: authelia, destination: omv01/edge, schedule: daily, restore_test: Restore authentication data into an isolated stack quarterly}
+  - {application: crowdsec, destination: omv01/edge, schedule: daily, restore_test: Restore configuration into an isolated stack quarterly}
+  - {application: uptime-kuma, destination: omv01/edge, schedule: daily, restore_test: Restore monitors into an isolated instance quarterly}
+  - {application: plex, destination: omv01/plex, schedule: daily, restore_test: Restore the Plex database into an isolated instance quarterly}
+  - {application: immich, destination: omv01/immich, schedule: daily, restore_test: Restore media and configuration into an isolated instance quarterly}
+  - {application: immich-db, destination: omv01/immich, schedule: daily after database dump, restore_test: Restore PostgreSQL into an isolated instance quarterly}
+capacity:
+  host_memory_mb: 32768
+  existing_peak_memory_mb: 4096
+  reserve_memory_mb: 4096
+  available_storage_gb: 512
+  reserve_storage_gb: 64
