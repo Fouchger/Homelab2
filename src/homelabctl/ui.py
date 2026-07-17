@@ -921,6 +921,7 @@ class ControlPlaneApp(App[None]):
                     last_report = elapsed
 
         progress = asyncio.create_task(heartbeat())
+
         def run_with_live_output() -> T:
             def show_output(line: str) -> None:
                 # The operation runs in a worker thread. Textual updates must be

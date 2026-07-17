@@ -30,6 +30,11 @@ plane provides:
 See [`DEVELOPMENT.md`](DEVELOPMENT.md) for acceptance evidence and deferred follow-up work, and
 [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
+The accepted whole-homelab target is documented in
+[`docs/FUTURE_STATE.md`](docs/FUTURE_STATE.md). The GitHub-tracked Phase 6 build sequence and its
+acceptance gates are documented in
+[`docs/PHASE_6_EXECUTION_PLAN.md`](docs/PHASE_6_EXECUTION_PLAN.md).
+
 ## Quick start
 
 Run the installer:
