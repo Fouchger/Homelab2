@@ -428,6 +428,7 @@ def check_tofu_foundation(path: Path) -> OperationResult:
             "OpenTofu formatting passed",
             "Provider lock initialization passed",
             "OpenTofu configuration validation passed",
+            *result.plan_summary,
             f"Non-destructive plan saved at {result.plan_path}",
             f"Generated non-secret inputs: {result.variables_path}",
             f"Diagnostic log: {result.diagnostic_log}",

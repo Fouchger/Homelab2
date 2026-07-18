@@ -4,6 +4,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 readonly REPOSITORY="${HOMELAB_REPOSITORY:-Fouchger/Homelab2}"
+readonly REPOSITORY_URL="${HOMELAB_REPOSITORY_URL:-https://github.com/${REPOSITORY}.git}"
 readonly BRANCH="${HOMELAB_BRANCH:-main}"
 readonly INSTALL_DIR="${HOMELAB_INSTALL_DIR:-${HOME}/Homelab2}"
 readonly BIN_DIR="${HOMELAB_BIN_DIR:-/usr/local/bin}"
@@ -166,7 +167,6 @@ install_task() {
 }
 
 clone_or_update_repository() {
-  local repository_url="https://github.com/${REPOSITORY}.git"
   local tracked_changes
 
   git check-ref-format --branch "$BRANCH" >/dev/null 2>&1 || fail "Invalid branch name: ${BRANCH}"
@@ -174,7 +174,7 @@ clone_or_update_repository() {
   if [ ! -e "$INSTALL_DIR" ]; then
     info "Cloning ${REPOSITORY} into ${INSTALL_DIR}"
     mkdir -p -- "$(dirname "$INSTALL_DIR")"
-    git clone --branch "$BRANCH" --single-branch -- "$repository_url" "$INSTALL_DIR"
+    git clone --branch "$BRANCH" --single-branch -- "$REPOSITORY_URL" "$INSTALL_DIR"
     return
   fi
 
@@ -187,7 +187,7 @@ clone_or_update_repository() {
   fi
 
   info "Updating the existing repository in ${INSTALL_DIR}"
-  git -C "$INSTALL_DIR" fetch "$repository_url" "$BRANCH"
+  git -C "$INSTALL_DIR" fetch "$REPOSITORY_URL" "$BRANCH"
   if git -C "$INSTALL_DIR" show-ref --verify --quiet "refs/heads/${BRANCH}"; then
     git -C "$INSTALL_DIR" checkout "$BRANCH"
   else

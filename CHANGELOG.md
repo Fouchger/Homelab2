@@ -11,8 +11,8 @@ All notable changes to this project are documented in this file.
   exposure, capacity, and recovery boundaries.
 - Grouped VMIDs beginning at 200, static host addresses below 100, DHCP host addresses above 200,
   and Ubuntu 24.04 as the default operating system for new managed guests.
-- Phase 6 execution and development plan with ordered workstreams, acceptance gates, a GitHub
-  progress workflow, and a reusable workstream issue template.
+- Phase 7–11 roadmap with ordered workstreams, dependencies, acceptance gates, and links to the
+  GitHub Roadmap project and phase trackers.
 - Community Scripts as a pinned, checksum-verified VM/LXC bootstrap accelerator beneath Homelab2's
   unattended orchestration and no-destroy safety boundary.
 - A versioned whole-site manifest and generated JSON Schema covering networks, guests,
@@ -22,6 +22,18 @@ All notable changes to this project are documented in this file.
   secret-bearing evidence before provider execution.
 - Fail-closed discovery redaction for quoted multiline RouterOS values and a local read-only
   evidence workflow that retains exact production identifiers only in memory.
+- Direct unattended CLI acceptance for initialization, validation, secret-free JSON display,
+  readiness results, invalid input, missing configuration, and stable exit codes.
+- A clean Ubuntu 24.04 installer smoke test that installs the exact reviewed commit, verifies the
+  installed tools, exercises the non-interactive quickstart, and keeps development tooling out of
+  the production environment.
+- Resource-level OpenTofu confirmation summaries showing every planned resource action and
+  explicit add/change/destroy totals, including a clear zero-resource state for output-only plans.
+
+### Changed
+
+- Phase 6 is recorded as the completed planning, manifest, discovery, and no-destroy safety
+  foundation; the remaining production delivery work is organized into Phases 7–11.
 
 ## [0.4.0] - 2026-07-17
 

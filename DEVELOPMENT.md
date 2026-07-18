@@ -11,8 +11,9 @@ acceptance criteria, and implementation discussion for each active workstream.
 | `v0.2.0` | Phase 2: secure provisioning foundation | Complete |
 | `v0.3.0` | Phase 3: Proxmox and Cloudflare provisioning | Complete |
 | `v0.4.0` | Phase 4: system configuration and guarded operations | Complete |
-| `v0.5.0` | Phase 5: whole-homelab architecture and build design | Documentation complete |
-| `v0.6.0` | Phase 6: automated whole-homelab build | Planned |
+| Unreleased | Phase 5: whole-homelab architecture and build design | Complete |
+| Unreleased | Phase 6: manifest, discovery, and no-destroy safety foundation | Complete |
+| Unreleased | Phases 7–11: guarded whole-homelab delivery | Active |
 
 ## Phase 5 plan
 
@@ -35,28 +36,27 @@ The architecture and staged safety boundary are recorded in
 [`docs/CLEAN_REBUILD_PLAN.md`](docs/CLEAN_REBUILD_PLAN.md).
 
 The complete deployment and application target is recorded in
-[`docs/FUTURE_STATE.md`](docs/FUTURE_STATE.md). Phase 6 sequencing, development requirements,
-acceptance gates, and GitHub workflow are defined in
-[`docs/PHASE_6_EXECUTION_PLAN.md`](docs/PHASE_6_EXECUTION_PLAN.md).
+[`docs/FUTURE_STATE.md`](docs/FUTURE_STATE.md). Active sequencing, dependencies, acceptance gates,
+and GitHub trackers are defined in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Phase 5 is documentation-only. It does not authorize or perform any production infrastructure
 change. Its acceptance boundary is a complete future-state catalogue, explicit tool ownership,
-the no-destroy migration contract, resource and exposure guardrails, and an issue-ready Phase 6
-execution plan.
+the no-destroy migration contract, resource and exposure guardrails, and an issue-ready delivery
+plan.
 
-## Phase 6 plan
+## Phase 6 acceptance
 
-Phase 6 implements the accepted design through GitHub-tracked workstreams. It adds the whole-site
-manifest and safety engine, MikroTik desired state, pinned Community Scripts integration, the
-replacement control plane and DNS, the Deployrr-compatible edge and media Docker platforms,
-OpenMediaVault adoption, consolidation into one Plex service, the Immich side-by-side rebuild, and
-full recovery acceptance. New managed guests standardize on Ubuntu 24.04 unless a documented
-upstream support or appliance requirement justifies another operating system.
+Phase 6 completed the planning, whole-site manifest, read-only discovery, and provider-independent
+no-destroy safety foundation in [#17](https://github.com/Fouchger/Homelab2/issues/17). It did not
+perform router, replacement-guest, storage, or application production mutations. Its automated
+acceptance included the generated manifest schema, collision and capacity admission, immutable
+resource protections, secret-redacted discovery evidence, and 143 passing tests.
 
-Community Scripts accelerate reviewed VM and LXC creation. Deployrr supplies reviewed Docker and
-Traefik conventions. Neither is the desired-state owner: Homelab2 pins inputs, supplies unattended
-configuration, validates results, records evidence, and refuses destructive actions against every
-discovered server.
+The production work once grouped under Phase 6 is now organized into Phases 7–11. Community
+Scripts may accelerate reviewed VM and LXC creation, and Deployrr may supply reviewed Docker and
+Traefik conventions, but neither becomes the desired-state owner. The active sequence is the
+[Homelab2 Roadmap](https://github.com/users/Fouchger/projects/2) and
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Phase 1 acceptance
 
@@ -99,16 +99,16 @@ authentication, the OpenTofu foundation plan, and an up-to-date control plane. I
 
 | Priority | Workstream | Tracking | Depends on |
 |---|---|---|---|
-| 1 | CLI and clean-installer acceptance coverage | [#3](https://github.com/Fouchger/Homelab2/issues/3) | Phase 1 |
-| 2 | Offline age identity backup and recovery verification | [#11](https://github.com/Fouchger/Homelab2/issues/11) | Phase 2 operations |
-| 3 | Trusted Proxmox API TLS and certificate verification | [#12](https://github.com/Fouchger/Homelab2/issues/12) | Phase 2 hardening |
-| 4 | Curated application recovery on a disposable workload | [#15](https://github.com/Fouchger/Homelab2/issues/15) | Phase 4 pilot |
+| 1 | CLI and clean-installer acceptance coverage | [#3](https://github.com/Fouchger/Homelab2/issues/3) | Phase 7 |
+| 2 | Offline age identity backup and recovery verification | [#11](https://github.com/Fouchger/Homelab2/issues/11) | Phase 7 |
+| 3 | Trusted Proxmox API TLS and certificate verification | [#12](https://github.com/Fouchger/Homelab2/issues/12) | Phase 7 |
+| 4 | Curated application recovery on a disposable workload | [#15](https://github.com/Fouchger/Homelab2/issues/15) | Phase 9 |
 
 Issues #6 and #7 completed the Phase 3 provisioning workstreams. Issues #8, #9, and #14 completed
-the Phase 4 inventory, guarded-operation, and curated application-pilot workstreams. Issues #11
-and #12 preserve the explicit operator backup and TLS-hardening work without reopening completed
-releases. Issue #15 retains the deliberately deferred disposable recovery acceptance: Community
-Scripts remain an upstream reference only and never share ownership of an OpenTofu-managed guest.
+the Phase 4 inventory, guarded-operation, and curated application-pilot workstreams. Issues #3,
+#11, and #12 remain visible in Phase 7 without reopening completed releases. Issue #15 remains
+visible in Phase 9 for deliberately deferred disposable recovery acceptance: Community Scripts
+remain an upstream reference only and never share ownership of an OpenTofu-managed guest.
 
 ## Phase 4 acceptance
 

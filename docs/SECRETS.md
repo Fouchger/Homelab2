@@ -93,7 +93,7 @@ file and `SOPS_AGE_KEY_FILE` when overriding its location.
 
 ## Stable credentials across rebuilds
 
-Phase 6 separates account identity from secret material:
+The whole-site manifest separates account identity from secret material:
 
 - stable usernames and service-account names live in the versioned site manifest;
 - every service has a unique password, API token, SSH key, or database credential;

@@ -2,7 +2,7 @@
 
 `config/examples/future-state.yaml` is the first complete machine-validated representation of the
 approved target. It is separate from the legacy `site.yaml` provisioning input so current Phase 3
-commands continue to work while Phase 6 adapters are developed.
+commands continue to work while the whole-site adapters are developed.
 
 The manifest records networks, guests, applications, exposure, backups, ownership, migration
 state, stable usernames, SOPS secret references, and host-capacity limits. It enforces:
@@ -28,8 +28,8 @@ Plan, apply, resume, and evidence contracts carry immutable digests between the 
 panel. Apply remains disabled unless a later operator checkpoint explicitly enables production
 mutation. Evidence rejects common secret-bearing fields.
 
-For Phase 6.0, validation uses synthetic discovery fixtures only. Live router and Proxmox access
-remains read-only, and no existing guest is stopped, deleted, detached, or replaced.
+At Phase 6 acceptance, validation used synthetic discovery fixtures and read-only live discovery.
+No existing guest was stopped, deleted, detached, or replaced.
 
 Ignored discovery snapshots can be parsed into local read-only admission evidence. Parsing fails
 if a secret-shaped assignment is present. Exact discovered VMIDs, addresses, raw-disk identifiers,

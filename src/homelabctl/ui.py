@@ -52,7 +52,8 @@ class ConfirmDialog(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         with Vertical(id="confirm-dialog"):
             yield Static(self.dialog_title, classes="dialog-title")
-            yield Static(self.detail, classes="dialog-detail")
+            with VerticalScroll(id="confirm-detail-scroll"):
+                yield Static(self.detail, classes="dialog-detail")
             with Horizontal(classes="dialog-actions"):
                 yield Button("Cancel", id="confirm-cancel")
                 yield Button("Continue", id="confirm-continue", variant="error")
@@ -846,7 +847,8 @@ class ControlPlaneApp(App[None]):
     ExistingSecretDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     CopyCommandDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     ActivityCopyDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
-    #confirm-dialog { width: 64; height: auto; background: $hl-surface; border: thick $hl-danger; padding: 2; }
+    #confirm-dialog { width: 86; height: auto; max-height: 90%; background: $hl-surface; border: thick $hl-danger; padding: 2; }
+    #confirm-detail-scroll { height: auto; max-height: 24; border: solid $hl-border; padding: 0 1; }
     #secret-input-dialog { width: 72; height: auto; background: $hl-surface; border: thick $hl-accent; padding: 2; }
     #existing-secret-dialog { width: 78; height: auto; background: $hl-surface; border: thick $hl-success; padding: 2; }
     #existing-secret-hint { height: 2; color: $hl-success; text-style: bold; }
