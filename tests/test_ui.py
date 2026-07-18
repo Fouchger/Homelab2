@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import Mock
 
+from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Button, Input, RichLog, Static, TextArea
 
 from homelabctl.configuration import load_config, save_config
@@ -10,6 +11,7 @@ from homelabctl.models import HomelabConfig, default_config
 from homelabctl.operations import OPERATIONS, Operation, OperationResult
 from homelabctl.ui import (
     ACTION_SECTIONS,
+    ActionPage,
     ActivityCopyDialog,
     ConfigurationPage,
     ConfirmDialog,
@@ -447,6 +449,30 @@ async def test_opentofu_operation_is_reachable_in_very_wide_layout(
         await pilot.pause()
 
     execute.assert_called_once_with("tofu-check", app.config_path)
+
+
+async def test_operation_progress_stays_above_the_scrolling_workspace(tmp_path: Path) -> None:
+    app = ControlPlaneApp(tmp_path / "site.yaml", initial_page="infrastructure")
+
+    async with app.run_test(size=(140, 32)) as pilot:
+        app._set_operation_progress("Running baseline")
+        await pilot.pause()
+
+        page = app.query_one("#infrastructure", ActionPage)
+        progress = page.query_one(".operation-progress", Static)
+        workspace = page.query_one(".action-workspace", Horizontal)
+        action_list = page.query_one(".action-list", VerticalScroll)
+        initial_region = progress.region
+
+        assert progress.parent is page
+        assert progress.display
+        assert progress.region.y < workspace.region.y
+
+        action_list.scroll_end(animate=False)
+        await pilot.pause()
+
+        assert progress.region == initial_region
+        assert progress.region.y < workspace.region.y
 
 
 async def test_activity_can_be_copied_as_plain_text(tmp_path: Path, monkeypatch) -> None:

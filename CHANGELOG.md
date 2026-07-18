@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+- Keep the active-operation progress indicator fixed above the scrolling action workspace.
+
 ### Added
 
 - Complete whole-homelab future-state scope covering MikroTik, Proxmox, Technitium, OpenMediaVault,
