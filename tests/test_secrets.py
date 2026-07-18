@@ -13,12 +13,14 @@ from homelabctl.cli import main
 from homelabctl.configuration import save_config
 from homelabctl.manifest import load_manifest
 from homelabctl.models import HomelabConfig, default_config
+from homelabctl.operations import cloudflare_token_plan
 from homelabctl.secrets import (
     SecretBundle,
     SecretError,
     ensure_age_identity,
     initialize_secret_file,
     load_secrets,
+    masked_provider_secret_hint,
     resolve_secrets_path,
     set_cloudflare_token,
     set_proxmox_token,
@@ -351,6 +353,42 @@ def test_cloudflare_validation_ignores_unfinished_proxmox_placeholder(
     )
 
     validate_provider_secret(path, "cloudflare", sops_executable="sops")
+
+
+def test_cloudflare_confirmation_hint_exposes_only_last_four_characters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_encrypted_file(tmp_path / "secrets.enc.yaml")
+    monkeypatch.setattr(
+        "homelabctl.secrets.subprocess.run", lambda *args, **kwargs: completed_decryption()
+    )
+
+    hint = masked_provider_secret_hint(path, "cloudflare", sops_executable="sops")
+
+    assert hint == "********cret"
+    assert CLOUDFLARE_TOKEN not in hint
+
+
+def test_cloudflare_plan_keeps_masked_hint_out_of_activity_lines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = default_config().model_dump(mode="json")
+    data["cloudflare"]["domains"] = ["example.com"]
+    config_path = save_config(HomelabConfig.model_validate(data), tmp_path / "site.yaml")
+    secret_path = tmp_path / "secrets.enc.yaml"
+    hint = "********cret"
+    monkeypatch.setattr(
+        "homelabctl.operations.masked_provider_secret_hint",
+        lambda path, provider: hint,
+    )
+    monkeypatch.setattr("homelabctl.operations.resolve_secrets_path", lambda: secret_path)
+
+    result = cloudflare_token_plan(config_path)
+
+    assert result.succeeded
+    assert result.secret_hint == hint
+    assert hint not in "\n".join(result.lines)
+    assert CLOUDFLARE_TOKEN not in "\n".join(result.lines)
 
 
 def test_age_identity_is_created_once_and_only_public_recipient_is_returned(

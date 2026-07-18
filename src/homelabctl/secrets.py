@@ -199,12 +199,34 @@ def validate_provider_secret(
 ) -> None:
     """Validate one encrypted provider independently of unfinished provider setup."""
 
+    _validated_provider_secret(path, provider, sops_executable=sops_executable)
+
+
+def masked_provider_secret_hint(
+    path: str | Path | None,
+    provider: Literal["proxmox", "cloudflare"],
+    *,
+    sops_executable: str | None = None,
+) -> str:
+    """Return a non-secret confirmation hint without exposing the provider token."""
+
+    secret = _validated_provider_secret(path, provider, sops_executable=sops_executable)
+    value = secret.api_token.get_secret_value()
+    return f"********{value[-4:]}" if len(value) >= 12 else "configured (value hidden)"
+
+
+def _validated_provider_secret(
+    path: str | Path | None,
+    provider: Literal["proxmox", "cloudflare"],
+    *,
+    sops_executable: str | None = None,
+) -> ProviderSecret:
     decrypted = _decrypt_secret_mapping(path, sops_executable=sops_executable)
     section = decrypted.get(provider)
     if not isinstance(section, dict):
         raise SecretError(f"Decrypted secrets must include {provider}.api_token")
     try:
-        ProviderSecret.model_validate(section)
+        return ProviderSecret.model_validate(section)
     except ValidationError as exc:
         raise SecretError(_format_secret_validation_error(exc, prefix=provider)) from exc
 

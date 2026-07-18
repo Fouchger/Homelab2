@@ -45,6 +45,7 @@ from homelabctl.proxmox_bootstrap import (
 from homelabctl.secrets import (
     SecretError,
     ensure_secret_store,
+    masked_provider_secret_hint,
     resolve_age_identity_path,
     resolve_secrets_path,
     set_cloudflare_token,
@@ -64,6 +65,7 @@ class OperationResult:
     fallback_text: str | None = None
     recovery_operation: str | None = None
     recovery_prompt: str | None = None
+    secret_hint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,15 +237,43 @@ def cloudflare_token_plan(path: Path) -> OperationResult:
             "Cloudflare token plan",
             ("No external Cloudflare domains are configured.",),
         )
+    try:
+        hint = masked_provider_secret_hint(resolve_secrets_path(), "cloudflare")
+    except SecretError:
+        hint = None
+    token_status = (
+        "Existing Cloudflare token: validated and available to keep"
+        if hint is not None
+        else "Existing Cloudflare token: not available; enter a replacement"
+    )
     return OperationResult(
         True,
         "Cloudflare token plan",
         (
             f"Domains: {', '.join(config.cloudflare.domains)}",
             f"Encrypted credentials: {resolve_secrets_path()}",
-            "The token field will be masked and passed directly to SOPS",
-            "An existing Cloudflare token will be replaced",
+            token_status,
+            "Existing token values are never written to the activity log",
             "The Cloudflare credential will be validated independently after saving",
+        ),
+        secret_hint=hint,
+    )
+
+
+def confirm_cloudflare_credential(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+        secret_path = resolve_secrets_path()
+        validate_provider_secret(secret_path, "cloudflare")
+    except (ConfigurationError, SecretError) as exc:
+        return OperationResult(False, "Cloudflare API token", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Cloudflare API token",
+        (
+            f"Existing encrypted Cloudflare credential confirmed at {secret_path}",
+            f"Cloudflare credential validated for {len(config.cloudflare.domains)} configured domain(s)",
+            "The encrypted token was kept unchanged",
         ),
     )
 
@@ -600,8 +630,8 @@ OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "cloudflare-token",
         "Set Cloudflare API token",
-        "Securely add or replace the token required by configured external domains.",
-        lambda path: OperationResult(False, "Cloudflare API token", ("Token input required",)),
+        "Confirm, add, or replace the token required by configured external domains.",
+        confirm_cloudflare_credential,
         destructive=True,
         plan=cloudflare_token_plan,
         secret_prompt="Paste the scoped Cloudflare API token. The value stays masked and is sent directly to SOPS.",

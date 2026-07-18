@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, Literal, TypeVar
 
 from pydantic import ValidationError
 from rich.markup import escape
@@ -95,6 +95,47 @@ class SecretInputDialog(ModalScreen[str | None]):
             self.app.notify("Enter the API token", severity="warning")
             return
         self.dismiss(value)
+
+
+class ExistingSecretDialog(ModalScreen[Literal["cancel", "keep", "replace"]]):
+    """Confirm an existing encrypted credential or choose masked replacement input."""
+
+    def __init__(self, title: str, detail: str, masked_hint: str) -> None:
+        super().__init__()
+        self.dialog_title = title
+        self.detail = detail
+        self.masked_hint = masked_hint
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="existing-secret-dialog"):
+            yield Static(self.dialog_title, classes="dialog-title")
+            yield Static(self.detail, classes="dialog-detail")
+            yield Label("Current encrypted token", classes="field-label")
+            yield Static(self.masked_hint, id="existing-secret-hint")
+            yield Static(
+                "Only the final four characters are shown. The decrypted token is never logged.",
+                classes="dialog-detail",
+            )
+            with Horizontal(classes="dialog-actions"):
+                yield Button("Cancel", id="existing-secret-cancel")
+                yield Button("Replace token", id="existing-secret-replace")
+                yield Button(
+                    "Keep existing token",
+                    id="existing-secret-keep",
+                    variant="success",
+                )
+
+    @on(Button.Pressed, "#existing-secret-cancel")
+    def cancel(self) -> None:
+        self.dismiss("cancel")
+
+    @on(Button.Pressed, "#existing-secret-replace")
+    def replace(self) -> None:
+        self.dismiss("replace")
+
+    @on(Button.Pressed, "#existing-secret-keep")
+    def keep(self) -> None:
+        self.dismiss("keep")
 
 
 class CopyCommandDialog(ModalScreen[bool]):
@@ -802,10 +843,13 @@ class ControlPlaneApp(App[None]):
     .activity-log { height: 1fr; min-height: 9; background: #050b13; border: solid $hl-border; padding: 1; }
     ConfirmDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     SecretInputDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
+    ExistingSecretDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     CopyCommandDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     ActivityCopyDialog { align: center middle; background: rgba(3, 8, 16, 0.80); }
     #confirm-dialog { width: 64; height: auto; background: $hl-surface; border: thick $hl-danger; padding: 2; }
     #secret-input-dialog { width: 72; height: auto; background: $hl-surface; border: thick $hl-accent; padding: 2; }
+    #existing-secret-dialog { width: 78; height: auto; background: $hl-surface; border: thick $hl-success; padding: 2; }
+    #existing-secret-hint { height: 2; color: $hl-success; text-style: bold; }
     .dialog-title { height: 2; text-style: bold; }
     .dialog-detail { height: auto; color: $hl-muted; margin-bottom: 1; }
     .dialog-actions { height: 3; align-horizontal: right; }
@@ -1068,6 +1112,7 @@ class ControlPlaneApp(App[None]):
 
     async def _execute_operation(self, identifier: str) -> str:
         operation = next(item for item in OPERATIONS if item.identifier == identifier)
+        keep_existing_secret = False
         self.write_activity(
             f"[bold cyan]> {operation.title}[/bold cyan]", plain=f"> {operation.title}"
         )
@@ -1090,17 +1135,35 @@ class ControlPlaneApp(App[None]):
                 self.write_activity("")
                 self.notify(f"{preview.title}: needs attention", severity="warning")
                 return "attention"
-            confirmed = await self.push_screen_wait(
-                ConfirmDialog(f"Confirm: {operation.title}", "\n".join(preview.lines))
-            )
-            if not confirmed:
-                self.write_activity(
-                    "[yellow]Cancelled; no changes were made.[/yellow]",
-                    plain="Cancelled; no changes were made.",
+            if operation.secret_prompt is not None and preview.secret_hint is not None:
+                secret_choice = await self.push_screen_wait(
+                    ExistingSecretDialog(
+                        f"Confirm: {operation.title}",
+                        "A valid encrypted token already exists. Keep it or enter a replacement.",
+                        preview.secret_hint,
+                    )
                 )
-                self.write_activity("")
-                return "pending"
-        if operation.secret_prompt is not None:
+                if secret_choice == "keep":
+                    keep_existing_secret = True
+                elif secret_choice == "cancel":
+                    self.write_activity(
+                        "[yellow]Cancelled; the encrypted credentials were unchanged.[/yellow]",
+                        plain="Cancelled; the encrypted credentials were unchanged.",
+                    )
+                    self.write_activity("")
+                    return "pending"
+            else:
+                confirmed = await self.push_screen_wait(
+                    ConfirmDialog(f"Confirm: {operation.title}", "\n".join(preview.lines))
+                )
+                if not confirmed:
+                    self.write_activity(
+                        "[yellow]Cancelled; no changes were made.[/yellow]",
+                        plain="Cancelled; no changes were made.",
+                    )
+                    self.write_activity("")
+                    return "pending"
+        if operation.secret_prompt is not None and not keep_existing_secret:
             secret = await self.push_screen_wait(
                 SecretInputDialog(operation.title, operation.secret_prompt)
             )

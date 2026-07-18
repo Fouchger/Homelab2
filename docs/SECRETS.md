@@ -69,6 +69,10 @@ Readiness fails when a credential required by the active configuration is missin
 guided Cloudflare token operation or remove the external domains from Configuration when
 Cloudflare management is not wanted.
 
+The guided operation validates an existing Cloudflare token before requesting input. When one is
+available, the menu displays only a masked final-four-character hint and lets the operator keep or
+replace it. The complete decrypted value is never displayed or written to activity history.
+
 Use `HOMELAB_SECRETS` or `SECRETS=` with Task to select another encrypted file.
 
 ## Backup and recovery

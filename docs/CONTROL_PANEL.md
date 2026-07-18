@@ -120,6 +120,11 @@ use masked dialogs and pass values directly to their encrypted operation without
 the activity log. Every action section has **View / copy activity**, which opens the complete
 session history as plain text for support and debugging; terminal colour markup is omitted.
 
+When **Set Cloudflare API token** finds a valid encrypted token, it shows only a masked hint with
+the final four characters and offers **Keep existing token** or **Replace token**. Keeping it
+revalidates the encrypted credential without asking for the token again. Replacement still uses
+masked input. Neither the full token nor its masked hint is written to session activity.
+
 Remote sessions cannot always write to the operator's local clipboard because MobaXterm and browser
 terminals may block OSC 52 clipboard requests. The activity dialog therefore offers three paths:
 

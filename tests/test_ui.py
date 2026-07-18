@@ -15,6 +15,7 @@ from homelabctl.ui import (
     ConfirmDialog,
     ControlPlaneApp,
     CopyCommandDialog,
+    ExistingSecretDialog,
     SecretInputDialog,
 )
 
@@ -335,6 +336,91 @@ async def test_masked_cloudflare_token_is_passed_directly_to_secret_operation(
         await pilot.pause()
 
     execute_secret.assert_called_once_with("secret-test", "private-token-value", app.config_path)
+
+
+async def test_existing_cloudflare_token_can_be_confirmed_without_reentry(
+    tmp_path: Path, monkeypatch
+) -> None:
+    full_token = "private-token-value"
+    masked_hint = "********alue"
+    operation = Operation(
+        "secret-test",
+        "Set token",
+        "Test existing token flow",
+        lambda path: OperationResult(True, "Set token", ("Existing token kept",)),
+        destructive=True,
+        plan=lambda path: OperationResult(
+            True,
+            "plan",
+            ("Existing token is valid",),
+            secret_hint=masked_hint,
+        ),
+        secret_prompt="Paste token",
+    )
+    execute = Mock(return_value=OperationResult(True, "Set token", ("Existing token kept",)))
+    execute_secret = Mock()
+    monkeypatch.setattr("homelabctl.ui.OPERATIONS", (operation,))
+    monkeypatch.setattr("homelabctl.ui.execute", execute)
+    monkeypatch.setattr("homelabctl.ui.execute_with_secret", execute_secret)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("3")
+        await pilot.click("#operation-secret-test")
+        await pilot.pause(0.2)
+
+        assert isinstance(app.screen, ExistingSecretDialog)
+        assert str(app.screen.query_one("#existing-secret-hint", Static).content) == masked_hint
+        assert full_token not in str(app.screen)
+
+        await pilot.click("#existing-secret-keep")
+        await pilot.pause()
+
+    execute.assert_called_once_with("secret-test", app.config_path)
+    execute_secret.assert_not_called()
+    assert full_token not in "\n".join(app._activity_lines)
+    assert masked_hint not in "\n".join(app._activity_lines)
+
+
+async def test_existing_cloudflare_token_can_be_replaced_with_masked_input(
+    tmp_path: Path, monkeypatch
+) -> None:
+    operation = Operation(
+        "secret-test",
+        "Set token",
+        "Test replacement flow",
+        lambda path: OperationResult(True, "Set token", ("Existing token kept",)),
+        destructive=True,
+        plan=lambda path: OperationResult(
+            True,
+            "plan",
+            ("Existing token is valid",),
+            secret_hint="********alue",
+        ),
+        secret_prompt="Paste token",
+    )
+    execute_secret = Mock(return_value=OperationResult(True, "Set token", ("Saved",)))
+    monkeypatch.setattr("homelabctl.ui.OPERATIONS", (operation,))
+    monkeypatch.setattr("homelabctl.ui.execute_with_secret", execute_secret)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("3")
+        await pilot.click("#operation-secret-test")
+        await pilot.pause(0.2)
+        await pilot.click("#existing-secret-replace")
+        await pilot.pause(0.2)
+
+        assert isinstance(app.screen, SecretInputDialog)
+        secret_input = app.screen.query_one("#secret-input-value", Input)
+        assert secret_input.password
+        secret_input.value = "replacement-token-value"
+        await pilot.click("#secret-input-save")
+        await pilot.pause()
+
+    execute_secret.assert_called_once_with(
+        "secret-test", "replacement-token-value", app.config_path
+    )
 
 
 async def test_opentofu_operation_is_reachable_in_very_wide_layout(
