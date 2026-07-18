@@ -32,6 +32,13 @@ long-running command is active, the banner updates every second and the portable
 records a heartbeat every 15 seconds. Operation buttons remain disabled until completion, so a
 second action cannot accidentally replace or conceal a command that is still running.
 
+The sidebar also displays overall session progress and a completed-step count for every action
+section. Each action retains one of four visible states for the lifetime of the menu: **Pending**,
+**Running**, **Completed**, or **Attention**. Successful reruns keep a step completed, failed plans
+and operations are marked for attention, and cancelling a preview returns the step to pending.
+These indicators summarize the current operator session; they do not infer infrastructure state
+from configuration files and reset when the menu is restarted.
+
 Each purpose page labels actions as numbered steps and sorts them by their declared workflow
 sequence. Follow them from Step 1 onward; pages with more actions than fit in the terminal show a
 scroll hint and retain every card in responsive rows.

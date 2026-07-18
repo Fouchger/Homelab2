@@ -110,6 +110,40 @@ async def test_actions_are_grouped_in_meaningful_navigation_sections(tmp_path: P
         assert app.query_one("#operation-doctor", Button)
 
 
+async def test_successful_action_updates_step_section_and_overall_progress(
+    tmp_path: Path, monkeypatch
+) -> None:
+    execute = Mock(return_value=OperationResult(True, "Validation", ("Validated",)))
+    monkeypatch.setattr("homelabctl.ui.execute", execute)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+    total = sum(operation.visible for operation in OPERATIONS)
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("3")
+        await pilot.click("#operation-validate")
+        await pilot.pause()
+
+        assert str(app.query_one("#status-validate", Static).content) == "✓ Completed"
+        assert "1/" in str(app.query_one("#nav-setup", Button).label)
+        overall = str(app.query_one("#overall-progress", Static).content)
+        assert f"1/{total} complete" in overall
+
+
+async def test_failed_action_is_marked_as_needing_attention(tmp_path: Path, monkeypatch) -> None:
+    execute = Mock(return_value=OperationResult(False, "Validation", ("Invalid",)))
+    monkeypatch.setattr("homelabctl.ui.execute", execute)
+    app = ControlPlaneApp(tmp_path / "site.yaml")
+
+    async with app.run_test(size=(140, 48)) as pilot:
+        await pilot.press("3")
+        await pilot.click("#operation-validate")
+        await pilot.pause()
+
+        assert str(app.query_one("#status-validate", Static).content) == "! Attention"
+        assert str(app.query_one("#nav-setup", Button).label).endswith("!")
+        assert "1 attention" in str(app.query_one("#overall-progress", Static).content)
+
+
 def test_visible_operation_sequences_are_unique_within_each_menu_section() -> None:
     for section in ACTION_SECTIONS:
         sequences = [
@@ -197,6 +231,8 @@ async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(
 
         await pilot.click("#confirm-cancel")
         await pilot.pause()
+
+        assert str(app.query_one("#status-secrets-init", Static).content) == "○ Pending"
 
     execute.assert_not_called()
 

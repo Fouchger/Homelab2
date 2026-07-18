@@ -569,6 +569,23 @@ ACTION_SECTIONS: dict[str, tuple[str, str]] = {
 }
 
 
+SECTION_KEYS: dict[str, str] = {
+    "setup": "3",
+    "proxmox": "4",
+    "infrastructure": "5",
+    "maintenance": "6",
+    "diagnostics": "7",
+}
+
+
+OPERATION_STATUS: dict[str, tuple[str, str]] = {
+    "pending": ("○ Pending", "status-pending"),
+    "running": ("◐ Running", "status-running"),
+    "completed": ("✓ Completed", "status-completed"),
+    "attention": ("! Attention", "status-attention"),
+}
+
+
 SECTION_GUIDANCE: dict[str, str] = {
     "setup": "Follow the steps in order. The Cloudflare token step is needed only when external domains are configured.",
     "proxmox": "Prepare administrator SSH access before bootstrapping the API identity.",
@@ -604,6 +621,11 @@ class ActionPage(Vertical):
                             yield Static(
                                 f"{step}. {operation.title}",
                                 classes="operation-title",
+                            )
+                            yield Static(
+                                OPERATION_STATUS["pending"][0],
+                                id=f"status-{operation.identifier}",
+                                classes="operation-status status-pending",
                             )
                             yield Button("Run", id=f"operation-{operation.identifier}")
                 yield Static("", classes="operation-progress")
@@ -698,6 +720,13 @@ class ControlPlaneApp(App[None]):
     }
     #brand { height: 5; padding: 1; color: $hl-accent; text-style: bold; }
     #brand-subtitle { color: $hl-muted; text-style: none; }
+    #overall-progress {
+        height: 4;
+        margin-bottom: 1;
+        padding: 0 1;
+        color: $hl-muted;
+        border-bottom: solid $hl-border;
+    }
     .nav-button { width: 1fr; margin-bottom: 1; text-align: left; }
     #config-path { dock: bottom; height: auto; color: $hl-muted; padding: 1; }
     #pages { width: 1fr; height: 1fr; }
@@ -744,7 +773,12 @@ class ControlPlaneApp(App[None]):
     .section-guidance { height: auto; margin-bottom: 1; color: $hl-muted; }
     .operation-card { height: 3; padding: 0 1; align-vertical: middle; }
     .operation-title { width: 1fr; height: 1; text-style: bold; color: $hl-text; }
-    .operation-card Button { width: 10; height: 3; }
+    .operation-status { width: 12; height: 1; text-align: right; margin-right: 1; }
+    .status-pending { color: $hl-muted; }
+    .status-running { color: $hl-accent; text-style: bold; }
+    .status-completed { color: $hl-success; }
+    .status-attention { color: $hl-danger; text-style: bold; }
+    .operation-card Button { width: 7; height: 3; }
     .activity-heading { height: 3; align-vertical: middle; }
     .operation-progress {
         display: none;
@@ -798,9 +832,10 @@ class ControlPlaneApp(App[None]):
     Screen.-compact .action-list { width: 1fr; height: 1fr; padding-right: 0; }
     Screen.-compact .activity-panel { width: 1fr; min-width: 0; height: 16; padding-left: 0; margin-top: 1; border-left: none; }
     Screen.-compact .actions-grid { grid-size: 1; grid-columns: 1fr; }
-    Screen.-wide #sidebar { width: 22; }
+    Screen.-compact .operation-status { width: 12; }
+    Screen.-wide #sidebar { width: 26; }
     Screen.-wide #config-path { display: none; }
-    Screen.-wide .actions-grid { grid-size: 2; grid-columns: 1fr 1fr; }
+    Screen.-wide .actions-grid { grid-size: 1; grid-columns: 1fr; }
     Screen.-very-wide #sidebar { width: 28; }
     Screen.-very-wide #config-path { display: block; }
     Screen.-very-wide .actions-grid { grid-size: 2; grid-columns: 1fr 1fr; }
@@ -813,12 +848,16 @@ class ControlPlaneApp(App[None]):
         self._activity_lines: list[str] = []
         self._operation_active = False
         self._clock: Callable[[], float] = time.monotonic
+        self._operation_states = {
+            operation.identifier: "pending" for operation in OPERATIONS if operation.visible
+        }
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Horizontal(id="app-shell"):
             with Vertical(id="sidebar"):
                 yield Static("HOMELAB\n[dim]CONTROL PLANE[/dim]", id="brand")
+                yield Static("", id="overall-progress")
                 yield Button(
                     "1  Overview", id="nav-overview", classes="nav-button", variant="primary"
                 )
@@ -839,6 +878,7 @@ class ControlPlaneApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
+        self._refresh_progress_ui()
         self.show_page(self.initial_page)
 
     def action_show_page(self, page: str) -> None:
@@ -901,6 +941,66 @@ class ControlPlaneApp(App[None]):
             status.display = message is not None
             status.update(message or "")
 
+    def _set_operation_state(self, identifier: str, state: str) -> None:
+        self._operation_states[identifier] = state
+        label, status_class = OPERATION_STATUS[state]
+        status = self.query_one(f"#status-{identifier}", Static)
+        status.update(label)
+        for _, candidate in OPERATION_STATUS.values():
+            status.remove_class(candidate)
+        status.add_class(status_class)
+        self._refresh_progress_ui()
+
+    def _refresh_progress_ui(self) -> None:
+        visible_operations = [operation for operation in OPERATIONS if operation.visible]
+        completed = sum(
+            self._operation_states[operation.identifier] == "completed"
+            for operation in visible_operations
+        )
+        attention = sum(
+            self._operation_states[operation.identifier] == "attention"
+            for operation in visible_operations
+        )
+        total = len(visible_operations)
+        percent = round((completed / total) * 100) if total else 0
+        filled = round(percent / 10)
+        bar = "━" * filled + "─" * (10 - filled)
+        attention_text = f" · {attention} attention" if attention else ""
+        self.query_one("#overall-progress", Static).update(
+            f"[b]SESSION PROGRESS[/b]\n{completed}/{total} complete · {percent}%{attention_text}\n"
+            f"[cyan]{bar[:filled]}[/cyan][dim]{bar[filled:]}[/dim]"
+        )
+
+        for section, (title, _) in ACTION_SECTIONS.items():
+            operations = [
+                operation for operation in visible_operations if operation.section == section
+            ]
+            section_completed = sum(
+                self._operation_states[operation.identifier] == "completed"
+                for operation in operations
+            )
+            section_attention = any(
+                self._operation_states[operation.identifier] == "attention"
+                for operation in operations
+            )
+            section_running = any(
+                self._operation_states[operation.identifier] == "running"
+                for operation in operations
+            )
+            if section_attention:
+                marker = " !"
+            elif section_running:
+                marker = " ◐"
+            elif operations and section_completed == len(operations):
+                marker = " ✓"
+            else:
+                marker = ""
+            self.query_one(
+                f"#nav-{section}", Button
+            ).label = (
+                f"{SECTION_KEYS[section]}  {title}  {section_completed}/{len(operations)}{marker}"
+            )
+
     def _set_operation_buttons_disabled(self, disabled: bool) -> None:
         for button in self.query(".operation-card Button").results(Button):
             button.disabled = disabled
@@ -948,15 +1048,18 @@ class ControlPlaneApp(App[None]):
             self.notify("Another operation is already running", severity="warning")
             return
         self._operation_active = True
+        self._set_operation_state(identifier, "running")
         self._set_operation_buttons_disabled(True)
+        outcome = "attention"
         try:
-            await self._execute_operation(identifier)
+            outcome = await self._execute_operation(identifier)
         finally:
+            self._set_operation_state(identifier, outcome)
             self._operation_active = False
             self._set_operation_buttons_disabled(False)
             self._set_operation_progress(None)
 
-    async def _execute_operation(self, identifier: str) -> None:
+    async def _execute_operation(self, identifier: str) -> str:
         operation = next(item for item in OPERATIONS if item.identifier == identifier)
         self.write_activity(
             f"[bold cyan]> {operation.title}[/bold cyan]", plain=f"> {operation.title}"
@@ -979,7 +1082,7 @@ class ControlPlaneApp(App[None]):
                 )
                 self.write_activity("")
                 self.notify(f"{preview.title}: needs attention", severity="warning")
-                return
+                return "attention"
             confirmed = await self.push_screen_wait(
                 ConfirmDialog(f"Confirm: {operation.title}", "\n".join(preview.lines))
             )
@@ -989,7 +1092,7 @@ class ControlPlaneApp(App[None]):
                     plain="Cancelled; no changes were made.",
                 )
                 self.write_activity("")
-                return
+                return "pending"
         if operation.secret_prompt is not None:
             secret = await self.push_screen_wait(
                 SecretInputDialog(operation.title, operation.secret_prompt)
@@ -1000,7 +1103,7 @@ class ControlPlaneApp(App[None]):
                     plain="Cancelled; the encrypted credentials were unchanged.",
                 )
                 self.write_activity("")
-                return
+                return "pending"
             result = await self._run_with_progress(
                 operation.title, execute_with_secret, identifier, secret, self.config_path
             )
@@ -1058,3 +1161,4 @@ class ControlPlaneApp(App[None]):
             f"{result.title}: {'completed' if result.succeeded else 'needs attention'}",
             severity="information" if result.succeeded else "warning",
         )
+        return "completed" if result.succeeded else "attention"
