@@ -655,28 +655,30 @@ class ActionPage(Vertical):
         yield Static(title, classes="page-title")
         yield Static(subtitle, classes="page-subtitle")
         yield Static(SECTION_GUIDANCE[self.section], classes="section-guidance")
+        yield Static("", classes="operation-progress")
         with Horizontal(classes="action-workspace"):
-            with VerticalScroll(classes="action-list"):
-                with Grid(classes=f"actions-grid action-count-{len(operations)}"):
-                    for step, operation in enumerate(operations, start=1):
-                        with Vertical(classes="operation-card"):
+            with (
+                VerticalScroll(classes="action-list"),
+                Grid(classes=f"actions-grid action-count-{len(operations)}"),
+            ):
+                for step, operation in enumerate(operations, start=1):
+                    with Vertical(classes="operation-card"):
+                        yield Static(
+                            f"{step}. {operation.title}",
+                            classes="operation-title",
+                        )
+                        yield Static(operation.description, classes="operation-description")
+                        with Horizontal(classes="operation-footer"):
                             yield Static(
-                                f"{step}. {operation.title}",
-                                classes="operation-title",
+                                OPERATION_STATUS["pending"][0],
+                                id=f"status-{operation.identifier}",
+                                classes="operation-status status-pending",
                             )
-                            yield Static(operation.description, classes="operation-description")
-                            with Horizontal(classes="operation-footer"):
-                                yield Static(
-                                    OPERATION_STATUS["pending"][0],
-                                    id=f"status-{operation.identifier}",
-                                    classes="operation-status status-pending",
-                                )
-                                yield Button(
-                                    "Run",
-                                    id=f"operation-{operation.identifier}",
-                                    variant="primary",
-                                )
-                yield Static("", classes="operation-progress")
+                            yield Button(
+                                "Run",
+                                id=f"operation-{operation.identifier}",
+                                variant="primary",
+                            )
             with Vertical(classes="activity-panel"):
                 with Horizontal(classes="activity-heading"):
                     yield Static("Session activity", classes="section-title")
@@ -833,7 +835,7 @@ class ControlPlaneApp(App[None]):
     .operation-progress {
         display: none;
         height: 3;
-        margin-top: 1;
+        margin: 0 0 1 0;
         padding: 1 2;
         background: #10283d;
         border-left: thick $hl-accent;
