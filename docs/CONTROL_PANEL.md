@@ -97,7 +97,12 @@ configuration. Private key material is never displayed or logged.
 
 **Check OpenTofu foundation** is intentionally non-destructive. It initializes only locked
 providers, validates generated typed inputs, and writes a saved plan to the ignored `artifacts/`
-directory. It never applies a plan. See [`OPENTOFU_STATE.md`](OPENTOFU_STATE.md).
+directory. It never applies a plan. Before **Apply reviewed OpenTofu plan** can continue, the
+confirmation lists every resource address and planned action plus the add/change/destroy totals.
+It first describes configured LXCs with hostname, VMID, address, CPU, memory, and disk, followed by
+configured Cloudflare records in operator-readable form. An output-only plan explicitly reports
+zero infrastructure resource changes. See
+[`OPENTOFU_STATE.md`](OPENTOFU_STATE.md).
 
 **Preview guest inventory** derives the current host set from the accepted `proxmox_lxcs`
 OpenTofu output and refuses configuration/state drift. The generated JSON inventory is stored

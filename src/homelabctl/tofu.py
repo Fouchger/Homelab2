@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ class TofuCheckResult:
     variables_path: Path
     plan_path: Path
     diagnostic_log: Path
+    plan_summary: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +150,7 @@ def _run(
     diagnostic: DiagnosticLog,
     accepted_codes: tuple[int, ...] = (0,),
     timeout: int = 180,
-) -> None:
+) -> str:
     diagnostic.write("tofu.execute", " ".join(command))
     try:
         completed = subprocess.run(
@@ -165,6 +167,7 @@ def _run(
         diagnostic.write("tofu.exception", f"{type(exc).__name__}: {exc}")
         raise TofuError(f"Unable to run OpenTofu. Diagnostic log: {diagnostic.path}") from exc
     diagnostic.write("tofu.result", f"exit_code={completed.returncode}")
+    safe_stdout: list[str] = []
     for stream, content in (("stdout", completed.stdout), ("stderr", completed.stderr)):
         for line in content.splitlines():
             safe_line = line
@@ -176,11 +179,69 @@ def _run(
             for runtime_token in runtime_tokens - {""}:
                 safe_line = safe_line.replace(runtime_token, "[REDACTED]")
             diagnostic.write(f"tofu.{stream}", safe_line)
+            if stream == "stdout":
+                safe_stdout.append(safe_line)
     if completed.returncode not in accepted_codes:
         raise TofuError(
             f"OpenTofu check failed while running: {' '.join(command[1:3])}. "
             f"Diagnostic log: {diagnostic.path}"
         )
+    return "\n".join(safe_stdout)
+
+
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def summarize_plan(output: str) -> tuple[str, ...]:
+    """Return resource-level actions safe for an operator confirmation dialog."""
+
+    lines = [_ANSI_ESCAPE.sub("", line).strip() for line in output.splitlines()]
+    resource_actions = [
+        line.removeprefix("# ")
+        for line in lines
+        if line.startswith("# ") and (" will be " in line or " must be replaced" in line)
+    ]
+    totals = next((line for line in lines if line.startswith("Plan: ")), None)
+    no_changes = any(line.startswith("No changes.") for line in lines)
+    output_only = any("without changing any real infrastructure" in line for line in lines)
+
+    summary = ["Infrastructure resources in this plan:"]
+    summary.extend(f"- {action}" for action in resource_actions)
+    if totals:
+        summary.append(totals)
+    elif no_changes:
+        summary.append("No infrastructure resources will change.")
+    elif output_only or not resource_actions:
+        summary.append("Resources: 0 to add, 0 to change, 0 to destroy.")
+        if output_only:
+            summary.append("Only OpenTofu output values will be recorded.")
+    return tuple(summary)
+
+
+def summarize_desired_infrastructure(config: HomelabConfig) -> tuple[str, ...]:
+    """Describe the exact secret-free infrastructure target in operator language."""
+
+    summary = ["Configured infrastructure target:"]
+    if config.proxmox.containers:
+        for container in sorted(config.proxmox.containers, key=lambda item: item.key):
+            summary.append(
+                f'- Proxmox LXC "{container.hostname}": VMID {container.vm_id}, '
+                f"{container.address}, {container.cores} vCPU, {container.memory_mb} MiB RAM, "
+                f"{container.disk_gb} GiB disk"
+            )
+    else:
+        summary.append("- Proxmox LXCs: none configured")
+
+    if config.cloudflare.records:
+        for record in sorted(config.cloudflare.records, key=lambda item: item.resource_key):
+            name = record.zone if record.name == "@" else f"{record.name}.{record.zone}"
+            exposure = "proxied" if record.proxied else "DNS only"
+            summary.append(
+                f"- Cloudflare {record.type} record: {name} -> {record.content} ({exposure})"
+            )
+    else:
+        summary.append("- Cloudflare DNS records: none configured")
+    return tuple(summary)
 
 
 def _runtime_environment(
@@ -240,7 +301,7 @@ def check_foundation(
         diagnostic.write("tofu.backend", "local development backend")
     _run(init_command, cwd=working, environment=environment, diagnostic=diagnostic)
     _run([tofu, "validate"], cwd=working, environment=environment, diagnostic=diagnostic)
-    _run(
+    plan_output = _run(
         [
             tofu,
             "plan",
@@ -268,7 +329,12 @@ def check_foundation(
         json.dumps(metadata, indent=2) + "\n", encoding="utf-8"
     )
     diagnostic.write("tofu.check.complete", "format, initialization, validation, and plan passed")
-    return TofuCheckResult(variables_path, plan_path, diagnostic.path)
+    return TofuCheckResult(
+        variables_path,
+        plan_path,
+        diagnostic.path,
+        (*summarize_desired_infrastructure(config), *summarize_plan(plan_output)),
+    )
 
 
 def apply_saved_plan(

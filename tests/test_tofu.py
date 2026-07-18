@@ -17,6 +17,8 @@ from homelabctl.tofu import (
     TofuError,
     apply_saved_plan,
     check_foundation,
+    summarize_desired_infrastructure,
+    summarize_plan,
     tofu_variables,
 )
 
@@ -124,6 +126,11 @@ def test_menu_operation_reports_plan_and_log_paths(tmp_path: Path, monkeypatch) 
         tmp_path / "site.auto.tfvars.json",
         tmp_path / "foundation.tfplan",
         tmp_path / "opentofu.log",
+        (
+            "Infrastructure resources in this plan:",
+            '- bpg_proxmox_virtual_environment_container.lxc["dns"] will be created',
+            "Plan: 1 to add, 0 to change, 0 to destroy.",
+        ),
     )
     check = Mock(return_value=expected)
     monkeypatch.setattr("homelabctl.operations.check_foundation", check)
@@ -132,7 +139,74 @@ def test_menu_operation_reports_plan_and_log_paths(tmp_path: Path, monkeypatch) 
 
     assert result.succeeded
     assert f"Non-destructive plan saved at {expected.plan_path}" in result.lines
+    assert expected.plan_summary[1] in result.lines
     assert f"Diagnostic log: {expected.diagnostic_log}" in result.lines
+
+
+def test_plan_summary_lists_resources_and_action_totals() -> None:
+    output = """
+\x1b[1m  # bpg_proxmox_virtual_environment_container.lxc["dns"] will be created\x1b[0m
+  # cloudflare_dns_record.record["example.com/app/A"] will be updated in-place
+Plan: 1 to add, 1 to change, 0 to destroy.
+"""
+
+    assert summarize_plan(output) == (
+        "Infrastructure resources in this plan:",
+        '- bpg_proxmox_virtual_environment_container.lxc["dns"] will be created',
+        '- cloudflare_dns_record.record["example.com/app/A"] will be updated in-place',
+        "Plan: 1 to add, 1 to change, 0 to destroy.",
+    )
+
+
+def test_plan_summary_makes_output_only_plan_explicit() -> None:
+    output = """
+Changes to Outputs:
+  + foundation = {}
+You can apply this plan to save these new output values to the OpenTofu
+state, without changing any real infrastructure.
+"""
+
+    assert summarize_plan(output) == (
+        "Infrastructure resources in this plan:",
+        "Resources: 0 to add, 0 to change, 0 to destroy.",
+        "Only OpenTofu output values will be recorded.",
+    )
+
+
+def test_desired_infrastructure_summary_is_operator_readable() -> None:
+    data = default_config().model_dump(mode="json")
+    data["automation"]["ssh_public_keys"] = ["ssh-ed25519 AAAAC3NzaCTest automation"]
+    data["proxmox"]["containers"] = [
+        {
+            "key": "dns",
+            "vm_id": 220,
+            "hostname": "dns01",
+            "template_file_id": "local:vztmpl/debian-13-standard.tar.zst",
+            "address": "192.168.10.20/24",
+            "cores": 2,
+            "memory_mb": 2048,
+            "disk_gb": 16,
+        }
+    ]
+    data["cloudflare"] = {
+        "domains": ["example.com"],
+        "records": [
+            {
+                "zone": "example.com",
+                "name": "app",
+                "type": "A",
+                "content": "1.1.1.1",
+            }
+        ],
+    }
+
+    summary = summarize_desired_infrastructure(HomelabConfig.model_validate(data))
+
+    assert summary == (
+        "Configured infrastructure target:",
+        '- Proxmox LXC "dns01": VMID 220, 192.168.10.20/24, 2 vCPU, 2048 MiB RAM, 16 GiB disk',
+        "- Cloudflare A record: app.example.com -> 1.1.1.1 (DNS only)",
+    )
 
 
 def test_foundation_check_never_writes_runtime_token(tmp_path: Path, monkeypatch) -> None:

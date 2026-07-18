@@ -27,6 +27,8 @@ All notable changes to this project are documented in this file.
 - A clean Ubuntu 24.04 installer smoke test that installs the exact reviewed commit, verifies the
   installed tools, exercises the non-interactive quickstart, and keeps development tooling out of
   the production environment.
+- Resource-level OpenTofu confirmation summaries showing every planned resource action and
+  explicit add/change/destroy totals, including a clear zero-resource state for output-only plans.
 
 ### Changed
 
