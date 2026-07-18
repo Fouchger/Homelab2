@@ -617,17 +617,23 @@ class ActionPage(Vertical):
             with VerticalScroll(classes="action-list"):
                 with Grid(classes=f"actions-grid action-count-{len(operations)}"):
                     for step, operation in enumerate(operations, start=1):
-                        with Horizontal(classes="operation-card"):
+                        with Vertical(classes="operation-card"):
                             yield Static(
                                 f"{step}. {operation.title}",
                                 classes="operation-title",
                             )
-                            yield Static(
-                                OPERATION_STATUS["pending"][0],
-                                id=f"status-{operation.identifier}",
-                                classes="operation-status status-pending",
-                            )
-                            yield Button("Run", id=f"operation-{operation.identifier}")
+                            yield Static(operation.description, classes="operation-description")
+                            with Horizontal(classes="operation-footer"):
+                                yield Static(
+                                    OPERATION_STATUS["pending"][0],
+                                    id=f"status-{operation.identifier}",
+                                    classes="operation-status status-pending",
+                                )
+                                yield Button(
+                                    "Run",
+                                    id=f"operation-{operation.identifier}",
+                                    variant="primary",
+                                )
                 yield Static("", classes="operation-progress")
             with Vertical(classes="activity-panel"):
                 with Horizontal(classes="activity-heading"):
@@ -766,19 +772,21 @@ class ControlPlaneApp(App[None]):
     .actions-grid {
         grid-size: 2;
         grid-columns: 1fr 1fr;
-        grid-rows: 3;
+        grid-rows: 10;
         grid-gutter: 1;
         height: auto;
     }
     .section-guidance { height: auto; margin-bottom: 1; color: $hl-muted; }
-    .operation-card { height: 3; padding: 0 1; align-vertical: middle; }
-    .operation-title { width: 1fr; height: 1; text-style: bold; color: $hl-text; }
-    .operation-status { width: 12; height: 1; text-align: right; margin-right: 1; }
+    .operation-card { height: 10; padding: 0 1; }
+    .operation-title { width: 1fr; height: 2; text-style: bold; color: $hl-text; }
+    .operation-description { height: 3; color: $hl-muted; }
+    .operation-footer { height: 3; align-vertical: middle; }
+    .operation-status { width: 1fr; height: 1; }
     .status-pending { color: $hl-muted; }
     .status-running { color: $hl-accent; text-style: bold; }
     .status-completed { color: $hl-success; }
     .status-attention { color: $hl-danger; text-style: bold; }
-    .operation-card Button { width: 7; height: 3; }
+    .operation-card Button { width: 10; height: 3; }
     .activity-heading { height: 3; align-vertical: middle; }
     .operation-progress {
         display: none;
@@ -832,7 +840,6 @@ class ControlPlaneApp(App[None]):
     Screen.-compact .action-list { width: 1fr; height: 1fr; padding-right: 0; }
     Screen.-compact .activity-panel { width: 1fr; min-width: 0; height: 16; padding-left: 0; margin-top: 1; border-left: none; }
     Screen.-compact .actions-grid { grid-size: 1; grid-columns: 1fr; }
-    Screen.-compact .operation-status { width: 12; }
     Screen.-wide #sidebar { width: 26; }
     Screen.-wide #config-path { display: none; }
     Screen.-wide .actions-grid { grid-size: 1; grid-columns: 1fr; }

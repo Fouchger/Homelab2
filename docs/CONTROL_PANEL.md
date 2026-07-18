@@ -40,8 +40,9 @@ These indicators summarize the current operator session; they do not infer infra
 from configuration files and reset when the menu is restarted.
 
 Each purpose page labels actions as numbered steps and sorts them by their declared workflow
-sequence. Follow them from Step 1 onward; pages with more actions than fit in the terminal show a
-scroll hint and retain every card in responsive rows.
+sequence. Every action card displays its full title, purpose description, current session status,
+and a high-contrast Run button. Follow them from Step 1 onward; pages with more actions than fit in
+the terminal show a scroll hint and retain every card in responsive rows.
 
 On standard and wide terminals, actions occupy the left workspace in compact rows while Session
 activity stays visible in a persistent panel on the right. Narrow terminals stack the activity

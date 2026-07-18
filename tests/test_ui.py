@@ -184,9 +184,12 @@ async def test_every_menu_renders_all_visible_actions_in_execution_order(tmp_pat
             assert [
                 button.id.removeprefix("operation-") for button in buttons if button.id
             ] == expected
+            assert all(button.variant == "primary" for button in buttons)
+            assert all(str(button.label) == "Run" for button in buttons)
             titles = app.query(f"#{section} .operation-title").results(Static)
-            expected_titles = [
-                operation.title
+            descriptions = app.query(f"#{section} .operation-description").results(Static)
+            expected_operations = [
+                operation
                 for operation in sorted(
                     (
                         operation
@@ -197,8 +200,18 @@ async def test_every_menu_renders_all_visible_actions_in_execution_order(tmp_pat
                 )
             ]
             assert [str(title.content) for title in titles] == [
-                f"{number}. {title}" for number, title in enumerate(expected_titles, start=1)
+                f"{number}. {operation.title}"
+                for number, operation in enumerate(expected_operations, start=1)
             ]
+            assert [str(description.content) for description in descriptions] == [
+                operation.description for operation in expected_operations
+            ]
+            assert all(str(description.content).strip() for description in descriptions)
+            assert all(title.virtual_size.height <= title.size.height for title in titles)
+            assert all(
+                description.virtual_size.height <= description.size.height
+                for description in descriptions
+            )
 
 
 async def test_compact_menu_stacks_every_infrastructure_action(tmp_path: Path) -> None:
