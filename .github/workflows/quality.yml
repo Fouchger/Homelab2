@@ -90,6 +90,6 @@ jobs:
             --env HOMELAB_INSTALL_DIR=/tmp/Homelab2 \
             --env GIT_CONFIG_COUNT=1 \
             --env GIT_CONFIG_KEY_0=safe.directory \
-            --env GIT_CONFIG_VALUE_0=/source \
+            --env GIT_CONFIG_VALUE_0=/source/.git \
             ubuntu:24.04 \
             bash /source/.github/scripts/installer-smoke.sh
