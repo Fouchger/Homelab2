@@ -240,8 +240,8 @@ async def test_changing_menu_operation_shows_plan_and_can_be_cancelled(
         await pilot.press("3")
         await pilot.pause()
         assert app.query_one("#operation-secrets-init")
-        app.query_one("#operation-secrets-init", Button).press()
-        await pilot.pause(0.2)
+        await pilot.click("#operation-secrets-init")
+        await pilot.pause()
         assert isinstance(app.screen, ConfirmDialog)
         await pilot.pause(0.05)
 
