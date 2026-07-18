@@ -85,11 +85,8 @@ jobs:
           git branch --force installer-smoke HEAD
           docker run --rm \
             --volume "${GITHUB_WORKSPACE}:/source:ro" \
-            --env HOMELAB_REPOSITORY_URL=file:///source \
+            --env HOMELAB_REPOSITORY_URL=file:///tmp/installer-source \
             --env HOMELAB_BRANCH=installer-smoke \
             --env HOMELAB_INSTALL_DIR=/tmp/Homelab2 \
-            --env GIT_CONFIG_COUNT=1 \
-            --env GIT_CONFIG_KEY_0=safe.directory \
-            --env GIT_CONFIG_VALUE_0=/source/.git \
             ubuntu:24.04 \
             bash /source/.github/scripts/installer-smoke.sh

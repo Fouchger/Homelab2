@@ -2,10 +2,12 @@
 
 set -Eeuo pipefail
 
-readonly SOURCE_DIR="/source"
+readonly MOUNTED_SOURCE_DIR="/source"
+readonly SOURCE_DIR="/tmp/installer-source"
 readonly INSTALL_DIR="${HOMELAB_INSTALL_DIR:-/tmp/Homelab2}"
 readonly TEST_BRANCH="${HOMELAB_BRANCH:-installer-smoke}"
 
+cp -R "$MOUNTED_SOURCE_DIR" "$SOURCE_DIR"
 bash "${SOURCE_DIR}/install.sh"
 
 git --version
