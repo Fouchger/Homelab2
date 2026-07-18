@@ -6,10 +6,11 @@ Proxmox LXC.
 
 ## Release status
 
-Phases 1 through 4 are complete. `v0.4.0` adds accepted system configuration and guarded
-operations to the Proxmox LXC and multi-domain Cloudflare DNS provisioning from `v0.3.0`.
-Together with the secure-runtime foundations from `v0.1.0` and `v0.2.0`, the completed control
-plane provides:
+Phases 1 through 4 are released. Phase 5 completed the whole-homelab architecture, and Phase 6
+completed the manifest, read-only discovery, and no-destroy safety foundation. Active delivery
+now follows the [Homelab2 Roadmap](https://github.com/users/Fouchger/projects/2), beginning with
+[Phase 7: network and control foundation](https://github.com/Fouchger/Homelab2/issues/31).
+Together, the accepted control-plane releases and safety foundation provide:
 
 - a guided site configuration editor;
 - strict validation and rejection of unknown settings;
@@ -31,9 +32,8 @@ See [`DEVELOPMENT.md`](DEVELOPMENT.md) for acceptance evidence and deferred foll
 [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 The accepted whole-homelab target is documented in
-[`docs/FUTURE_STATE.md`](docs/FUTURE_STATE.md). The GitHub-tracked Phase 6 build sequence and its
-acceptance gates are documented in
-[`docs/PHASE_6_EXECUTION_PLAN.md`](docs/PHASE_6_EXECUTION_PLAN.md).
+[`docs/FUTURE_STATE.md`](docs/FUTURE_STATE.md). The active Phase 7–11 delivery sequence,
+dependencies, and acceptance gates are documented in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 The machine-validated target and no-destroy contracts are described in
 [`docs/PHASE_6_SAFETY.md`](docs/PHASE_6_SAFETY.md).
 
@@ -76,6 +76,11 @@ uv run homelabctl validate --config config/sites/local.yaml
 uv run homelabctl doctor --config config/sites/local.yaml
 uv run homelabctl show --config config/sites/local.yaml
 ```
+
+Unattended commands use stable exit codes: `0` means the requested check or operation succeeded,
+`1` means `doctor` completed but one or more required readiness checks failed, and `2` means the
+command input, configuration, or a guarded operation failed validation. Other non-zero codes are
+reserved for unexpected runtime termination.
 
 The preferred operator workflow is the control-panel menu:
 

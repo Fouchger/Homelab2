@@ -70,3 +70,26 @@ jobs:
           tofu -chdir=infrastructure init -backend=false -input=false -lockfile=readonly
           tofu -chdir=infrastructure validate
           tofu -chdir=infrastructure plan -refresh=false -lock=false -input=false -var-file=example.tfvars.json -out=example.tfplan
+
+  installer-smoke:
+    name: Ubuntu 24.04 installer smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install and verify on clean Ubuntu 24.04
+        run: |
+          git branch --force installer-smoke HEAD
+          docker run --rm \
+            --volume "${GITHUB_WORKSPACE}:/source:ro" \
+            --env HOMELAB_REPOSITORY_URL=file:///source \
+            --env HOMELAB_BRANCH=installer-smoke \
+            --env HOMELAB_INSTALL_DIR=/tmp/Homelab2 \
+            --env GIT_CONFIG_COUNT=1 \
+            --env GIT_CONFIG_KEY_0=safe.directory \
+            --env GIT_CONFIG_VALUE_0=/source \
+            ubuntu:24.04 \
+            bash /source/.github/scripts/installer-smoke.sh

@@ -37,10 +37,10 @@ never retrieves executable code from a moving branch. The Community Scripts revi
 reviewed installer blob, Uptime Kuma release, and verified SHA-256 hashes are recorded in
 [`../ansible/applications/UPSTREAM.md`](../ansible/applications/UPSTREAM.md).
 
-Phase 6 introduces a distinct, guarded creator adapter for new replacement guests. It does not
+Phase 7 introduces a distinct, guarded creator adapter for new replacement guests. It does not
 weaken this in-guest application boundary: the creator is commit-pinned and checksum-verified,
 targets only an unused identity, and must complete the OpenTofu import and zero-change adoption
-contract in [`PHASE_6_EXECUTION_PLAN.md`](PHASE_6_EXECUTION_PLAN.md).
+contract in [`ROADMAP.md`](ROADMAP.md).
 
 Uptime Kuma's source and prebuilt frontend are downloaded from immutable release URLs and verified
 before extraction. Production npm dependencies are resolved from the release lockfile, whose

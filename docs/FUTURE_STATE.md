@@ -1,8 +1,8 @@
 # Complete future state
 
 This document is the authoritative target for the single-host homelab. It defines the systems,
-applications, ownership boundaries, exposure policy, data placement, and recovery expectations that
-Phase 6 will implement. The migration safety rules in
+applications, ownership boundaries, exposure policy, data placement, and recovery expectations for
+Phases 7–11. The migration safety rules in
 [`CLEAN_REBUILD_PLAN.md`](CLEAN_REBUILD_PLAN.md) remain mandatory throughout the build.
 
 ## Outcomes
@@ -232,8 +232,9 @@ credential store or rebuild mechanism.
 ## Capacity guardrail
 
 The target allocations consume approximately 21-23 GiB before temporary migration guests and
-Proxmox overhead. Phase 6 must measure actual and peak memory use before each build and preserve a
-host reserve. `media01` is not created if the admission check predicts unsafe memory pressure.
+Proxmox overhead. Each delivery phase must measure actual and peak memory use before a build and
+preserve a host reserve. `media01` is not created if the admission check predicts unsafe memory
+pressure.
 Increasing the server to 64 GiB is recommended before adding optional applications or full metrics
 and log-retention stacks, but is not assumed by the plan.
 

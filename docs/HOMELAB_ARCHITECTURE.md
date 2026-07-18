@@ -5,8 +5,8 @@ build and operate the network, Proxmox platform, core services, and applications
 clear ownership boundaries and recoverability.
 
 The complete application catalogue, deployment choices, exposure matrix, and tool boundaries are
-defined in [`FUTURE_STATE.md`](FUTURE_STATE.md). The Phase 6 implementation sequence is defined in
-[`PHASE_6_EXECUTION_PLAN.md`](PHASE_6_EXECUTION_PLAN.md).
+defined in [`FUTURE_STATE.md`](FUTURE_STATE.md). The active Phase 7–11 implementation sequence is
+defined in [`ROADMAP.md`](ROADMAP.md).
 
 ## Hardware boundary
 
