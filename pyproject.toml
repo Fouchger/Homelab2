@@ -23,7 +23,7 @@ homelabctl = "homelabctl.cli:main"
 dev = [
   "pytest>=9.1.1,<10",
   "pytest-asyncio>=1.1,<2",
-  "ruff>=0.12,<1",
+  "ruff>=0.15.22,<1",
 ]
 
 [tool.hatch.build.targets.wheel]
