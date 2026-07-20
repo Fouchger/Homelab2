@@ -35,13 +35,21 @@ The configuration adapter restricts recursion to the seven internal VLANs, uses 
 forwarders, enables DNSSEC validation and QNAME minimization, creates forward and reverse
 `home.arpa` records, and installs a host firewall. DHCP remains exclusively on RouterOS.
 
-Preview and provision with the active DNS site configuration:
+Use `task menu`, open **Router**, and run its numbered actions in order:
 
-```text
-task dns:provision:plan CONFIG=config/examples/dns-core-site.yaml
-task dns:provision CONFIG=config/examples/dns-core-site.yaml
-task applications:apply CONFIG=config/examples/dns-core-site.yaml
-```
+1. **Prepare DNS automation key** creates and registers the key used by the helper.
+2. **Prepare network foundation** updates the active site configuration with `dns-core01` and
+   Technitium while preserving all existing guests and applications.
+3. **Set DNS administrator credential** opens a masked field and writes
+   `credentials.technitium-admin.value` directly through SOPS.
+4. **Validate final network design** checks the complete accepted MikroTik design.
+5. **Provision replacement DNS LXC** previews, confirms, creates, and verifies the pinned helper
+   installation.
+6. **Configure and validate replacement DNS** previews, confirms, applies, and health-checks only
+   Technitium, even when other applications are enabled.
+7. Generate the router change pack and check the remaining cutover gates.
+
+The CLI equivalents remain available for automation, but are not part of the normal user flow.
 
 ## Safe order
 

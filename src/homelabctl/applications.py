@@ -42,9 +42,15 @@ class ApplicationResult:
     lines: tuple[str, ...]
 
 
-def application_plan(config_path: Path) -> tuple[str, ...]:
+def application_plan(
+    config_path: Path, *, application_type: str | None = None
+) -> tuple[str, ...]:
     config = load_config(config_path)
-    enabled = [(key, app) for key, app in config.applications.items() if app.enabled]
+    enabled = [
+        (key, app)
+        for key, app in config.applications.items()
+        if app.enabled and (application_type is None or app.type == application_type)
+    ]
     if not enabled:
         raise ApplicationError("No enabled curated applications are configured")
     lines: list[str] = []
@@ -70,9 +76,15 @@ def application_plan(config_path: Path) -> tuple[str, ...]:
     return tuple(lines)
 
 
-def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
+def run_applications(
+    config_path: Path, *, check: bool, application_type: str | None = None
+) -> ApplicationResult:
     config = load_config(config_path)
-    enabled = [(key, app) for key, app in config.applications.items() if app.enabled]
+    enabled = [
+        (key, app)
+        for key, app in config.applications.items()
+        if app.enabled and (application_type is None or app.type == application_type)
+    ]
     if len(enabled) != 1:
         raise ApplicationError("The pilot supports exactly one enabled curated application")
     key, application = enabled[0]
@@ -181,7 +193,10 @@ def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
         line for line in completed.stdout.splitlines() if line.startswith(application.guest)
     )
     return ApplicationResult(
-        key, application.guest, diagnostic, recap or application_plan(config_path)
+        key,
+        application.guest,
+        diagnostic,
+        recap or application_plan(config_path, application_type=application_type),
     )
 
 

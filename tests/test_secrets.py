@@ -21,9 +21,11 @@ from homelabctl.secrets import (
     initialize_secret_file,
     load_secrets,
     masked_provider_secret_hint,
+    masked_service_credential_hint,
     resolve_secrets_path,
     set_cloudflare_token,
     set_proxmox_token,
+    set_service_credential,
     validate_provider_secret,
 )
 
@@ -332,6 +334,53 @@ def test_cloudflare_token_update_uses_stdin_and_can_create_provider_section(
     assert api_token not in command
     assert '["cloudflare"]["api_token"]' in command
     assert run.call_args.kwargs["input"] == json.dumps(api_token)
+
+
+def test_service_credential_update_uses_stdin_and_masked_confirmation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_encrypted_file(tmp_path / "secrets.enc.yaml")
+    credential = "unique-technitium-password"
+    decrypted_before = subprocess.CompletedProcess(
+        args=["sops", "decrypt"],
+        returncode=0,
+        stdout=yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "proxmox": {"api_token": TOKEN},
+                "credentials": {},
+            }
+        ),
+    )
+    updated = subprocess.CompletedProcess(args=["sops", "set"], returncode=0, stdout="")
+    run = Mock(side_effect=[decrypted_before, updated])
+    monkeypatch.setattr("homelabctl.secrets.subprocess.run", run)
+
+    set_service_credential(path, "technitium-admin", credential, sops_executable="sops")
+
+    command = run.call_args.args[0]
+    assert credential not in command
+    assert '["credentials"]["technitium-admin"]' in command
+    assert run.call_args.kwargs["input"] == json.dumps({"value": credential})
+
+    decrypted_after = yaml.safe_dump(
+        {
+            "schema_version": 1,
+            "proxmox": {"api_token": TOKEN},
+            "credentials": {"technitium-admin": {"value": credential}},
+        }
+    )
+    monkeypatch.setattr(
+        "homelabctl.secrets.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args=["sops", "decrypt"], returncode=0, stdout=decrypted_after
+        ),
+    )
+    hint = masked_service_credential_hint(
+        path, "technitium-admin", sops_executable="sops"
+    )
+    assert hint == "********word"
+    assert credential not in hint
 
 
 def test_cloudflare_validation_ignores_unfinished_proxmox_placeholder(

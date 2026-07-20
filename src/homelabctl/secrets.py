@@ -26,6 +26,7 @@ PLACEHOLDER_VALUES = {
     "replace-with-proxmox-api-token-secret",
     "replace-with-cloudflare-api-token",
 }
+SERVICE_CREDENTIAL_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 
 
 class SecretError(RuntimeError):
@@ -215,6 +216,59 @@ def masked_provider_secret_hint(
     return f"********{value[-4:]}" if len(value) >= 12 else "configured (value hidden)"
 
 
+def validate_service_credential(
+    path: str | Path | None,
+    key: str,
+    *,
+    sops_executable: str | None = None,
+) -> None:
+    """Validate one service credential without requiring every provider to be finished."""
+
+    _validated_service_credential(path, key, sops_executable=sops_executable)
+
+
+def masked_service_credential_hint(
+    path: str | Path | None,
+    key: str,
+    *,
+    sops_executable: str | None = None,
+) -> str:
+    """Return a masked confirmation hint for one encrypted service credential."""
+
+    secret = _validated_service_credential(path, key, sops_executable=sops_executable)
+    value = secret.value.get_secret_value()
+    return f"********{value[-4:]}"
+
+
+def _validated_service_credential(
+    path: str | Path | None,
+    key: str,
+    *,
+    sops_executable: str | None = None,
+) -> ServiceSecret:
+    normalized_key = _normalize_service_credential_key(key)
+    decrypted = _decrypt_secret_mapping(path, sops_executable=sops_executable)
+    credentials = decrypted.get("credentials")
+    section = credentials.get(normalized_key) if isinstance(credentials, dict) else None
+    if not isinstance(section, dict):
+        raise SecretError(
+            f"Decrypted secrets must include credentials.{normalized_key}.value"
+        )
+    try:
+        return ServiceSecret.model_validate(section)
+    except ValidationError as exc:
+        raise SecretError(
+            _format_secret_validation_error(exc, prefix=f"credentials.{normalized_key}")
+        ) from exc
+
+
+def _normalize_service_credential_key(key: str) -> str:
+    normalized = key.strip().lower()
+    if not SERVICE_CREDENTIAL_KEY_PATTERN.fullmatch(normalized):
+        raise SecretError("Service credential keys must be 2-32 lowercase letters, numbers, or dashes")
+    return normalized
+
+
 def _validated_provider_secret(
     path: str | Path | None,
     provider: Literal["proxmox", "cloudflare"],
@@ -281,6 +335,7 @@ def secret_template() -> str:
     payload = {
         "schema_version": 1,
         "proxmox": {"api_token": "replace-with-proxmox-api-token-secret"},
+        "credentials": {},
     }
     return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
 
@@ -459,6 +514,75 @@ def set_cloudflare_token(
     if not normalized or normalized in PLACEHOLDER_VALUES:
         raise SecretError("Enter a non-placeholder Cloudflare API token")
     return _set_provider_token(path, "cloudflare", normalized, sops_executable=sops_executable)
+
+
+def set_service_credential(
+    path: str | Path | None,
+    key: str,
+    value: str,
+    *,
+    sops_executable: str | None = None,
+) -> Path:
+    """Create or replace one encrypted service credential using protected stdin."""
+
+    normalized_key = _normalize_service_credential_key(key)
+    try:
+        validated = ServiceSecret(value=value)
+    except ValidationError as exc:
+        raise SecretError(
+            _format_secret_validation_error(exc, prefix=f"credentials.{normalized_key}")
+        ) from exc
+    normalized_value = validated.value.get_secret_value()
+    secret_path = resolve_secrets_path(path)
+    _read_encrypted_mapping(secret_path)
+
+    decrypted = _decrypt_secret_mapping(secret_path, sops_executable=sops_executable)
+    credentials = decrypted.get("credentials", {})
+    if not isinstance(credentials, dict):
+        raise SecretError("Decrypted secrets contain an invalid credentials mapping")
+    for existing_key, section in credentials.items():
+        if existing_key == normalized_key or not isinstance(section, dict):
+            continue
+        try:
+            existing = ServiceSecret.model_validate(section).value.get_secret_value()
+        except ValidationError as exc:
+            raise SecretError(
+                _format_secret_validation_error(exc, prefix=f"credentials.{existing_key}")
+            ) from exc
+        if existing == normalized_value:
+            raise SecretError("Service credentials must be unique; do not reuse another password")
+
+    if "credentials" not in decrypted:
+        selector = '["credentials"]'
+        protected_input: object = {normalized_key: {"value": normalized_value}}
+    else:
+        selector = f'["credentials"]["{normalized_key}"]'
+        protected_input = {"value": normalized_value}
+
+    sops = _find_sops(sops_executable)
+    try:
+        completed = subprocess.run(
+            [
+                sops,
+                "set",
+                "--value-stdin",
+                str(secret_path),
+                selector,
+            ],
+            input=json.dumps(protected_input),
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise SecretError(
+            f"SOPS could not update credentials.{normalized_key}.value"
+        ) from exc
+    if completed.returncode != 0:
+        raise SecretError(f"SOPS could not update credentials.{normalized_key}.value")
+    return secret_path
 
 
 def _set_provider_token(

@@ -24,16 +24,20 @@ Navigation keys:
 
 Actions are grouped by purpose instead of appearing in one large Operations page. Setup contains
 configuration, credential preparation, and guarded Ansible prerequisite installation; Proxmox
-contains administrator bootstrap actions; Router reviews and validates the complete MikroTik
-design, generates a hard-stopped proposal, and reports the remaining recovery gates;
+contains administrator bootstrap actions; Router prepares and deploys the replacement DNS in
+dependency order, validates the complete MikroTik design, generates a hard-stopped proposal, and
+reports the remaining recovery gates;
 Infrastructure contains OpenTofu checks plus guest inventory and baseline operations; Maintenance
 contains control-plane updates; and Diagnostics contains readiness and effective-setting reports.
 Each section presents its actions as sub-actions and shares the same session activity history.
 
-The Router page can preview and provision the replacement DNS LXC through a pinned Proxmox
-Community Scripts revision. Provisioning is a confirmed mutation; it refuses to overwrite an
-occupied VMID. DNS hardening and records are then applied by the curated Technitium application
-step using the DNS site configuration.
+The Router page is the complete operator workflow; no SOPS command or example configuration is
+required. Run its numbered actions from top to bottom. It creates the automation key, prepares the
+active site file without removing existing resources, captures the masked
+`credentials.technitium-admin.value` directly through SOPS, validates the design, provisions the
+replacement LXC through a pinned Proxmox Community Scripts revision, and configures and
+health-checks Technitium. Each mutating action shows its preview in the confirmation dialog, so
+there are no separate preview buttons to run. An occupied or conflicting VMID is refused.
 
 The Router page deliberately has no live router **Apply** action. Live configuration remains blocked
 until credential rotation, an encrypted off-router backup, a Safe Mode rehearsal, and a rollback

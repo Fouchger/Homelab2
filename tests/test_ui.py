@@ -106,7 +106,9 @@ async def test_actions_are_grouped_in_meaningful_navigation_sections(tmp_path: P
 
         await pilot.press("5")
         assert app.query_one("#pages").current == "router"
-        assert app.query_one("#operation-router-status", Button)
+        assert app.query_one("#operation-network-foundation", Button)
+        assert app.query_one("#operation-technitium-credential", Button)
+        assert app.query_one("#operation-dns-configure", Button)
         assert app.query_one("#operation-router-readiness", Button)
 
         await pilot.press("7")

@@ -40,6 +40,7 @@ from homelabctl.mikrotik import (
     load_mikrotik_desired_state,
     write_mikrotik_proposal,
 )
+from homelabctl.models import ApplicationSettings, ProxmoxLxcSettings
 from homelabctl.proxmox_bootstrap import (
     ProxmoxBootstrapError,
     ProxmoxTokenRecoveryRequired,
@@ -52,10 +53,13 @@ from homelabctl.secrets import (
     SecretError,
     ensure_secret_store,
     masked_provider_secret_hint,
+    masked_service_credential_hint,
     resolve_age_identity_path,
     resolve_secrets_path,
     set_cloudflare_token,
+    set_service_credential,
     validate_provider_secret,
+    validate_service_credential,
 )
 from homelabctl.tofu import TofuError, apply_saved_plan, check_foundation
 from homelabctl.updater import UpdateError, apply_update, prepare_update
@@ -175,6 +179,184 @@ def router_configuration_status(path: Path) -> OperationResult:
     return OperationResult(True, "Router configuration status", lines)
 
 
+def network_foundation_plan(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+    except ConfigurationError as exc:
+        return OperationResult(False, "Prepare network foundation", tuple(str(exc).splitlines()))
+    if (
+        str(config.network.management_cidr) != "192.168.30.0/24"
+        or str(config.network.gateway) != "192.168.30.1"
+        or config.network.vlan_id != 30
+    ):
+        return OperationResult(
+            False,
+            "Prepare network foundation",
+            (
+                "The accepted server-network design is not present in the active site file",
+                "Required: VLAN 30, 192.168.30.0/24, gateway 192.168.30.1",
+                f"Active configuration: {path}",
+            ),
+        )
+    if not config.automation.ssh_public_keys and not config.automation.ssh_public_key_files:
+        return OperationResult(
+            False,
+            "Prepare network foundation",
+            ("Run 'Prepare DNS automation key' first.",),
+        )
+    return OperationResult(
+        True,
+        "Prepare network foundation",
+        (
+            f"Active site configuration: {path}",
+            "Add protected DNS LXC dns-core01: VMID 220, 192.168.30.53/24, VLAN 30",
+            "Declare Technitium on dns-core01 with encrypted credential technitium-admin",
+            "Preserve every existing guest, application, and bootstrap DNS server",
+            "Reject any conflicting key, VMID, hostname, or IP address",
+        ),
+    )
+
+
+def prepare_network_foundation(path: Path) -> OperationResult:
+    plan = network_foundation_plan(path)
+    if not plan.succeeded:
+        return plan
+    try:
+        config = load_config(path)
+        template = (
+            config.proxmox.containers[0].template_file_id
+            if config.proxmox.containers
+            else "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+        )
+        expected_guest = ProxmoxLxcSettings(
+            key="dns-core01",
+            vm_id=220,
+            hostname="dns-core01",
+            template_file_id=template,
+            address="192.168.30.53/24",
+            cores=1,
+            memory_mb=1024,
+            swap_mb=512,
+            disk_gb=8,
+            started=True,
+            start_on_boot=True,
+            nesting=False,
+            protection=True,
+            tags=["dns", "network-core"],
+            provisioner="community-script",
+            helper_script="technitiumdns",
+        )
+        collisions = [
+            guest
+            for guest in config.proxmox.containers
+            if guest.key == expected_guest.key
+            or guest.vm_id == expected_guest.vm_id
+            or guest.hostname == expected_guest.hostname
+            or guest.address.ip == expected_guest.address.ip
+        ]
+        if collisions and not (
+            len(collisions) == 1 and collisions[0] == expected_guest
+        ):
+            raise ConfigurationError(
+                "DNS guest conflicts with an existing key, VMID, hostname, address, or declaration"
+            )
+        expected_app = ApplicationSettings(
+            type="technitium",
+            guest="dns-core01",
+            enabled=True,
+            port=5380,
+            credential="technitium-admin",
+        )
+        existing_app = config.applications.get("technitium")
+        if existing_app is not None and existing_app != expected_app:
+            raise ConfigurationError(
+                "Application key technitium already has a different declaration"
+            )
+        changed = False
+        if not collisions:
+            config.proxmox.containers.append(expected_guest)
+            changed = True
+        if existing_app is None:
+            config.applications["technitium"] = expected_app
+            changed = True
+        if changed:
+            save_config(config, path)
+    except ConfigurationError as exc:
+        return OperationResult(False, "Prepare network foundation", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Prepare network foundation",
+        (
+            f"Active site configuration: {'updated' if changed else 'already prepared'}",
+            "dns-core01 declared at 192.168.30.53/24",
+            "Technitium declared with credential technitium-admin",
+            "Existing infrastructure was preserved",
+        ),
+    )
+
+
+def technitium_credential_plan(path: Path) -> OperationResult:
+    try:
+        config = load_config(path)
+    except ConfigurationError as exc:
+        return OperationResult(False, "Technitium administrator credential", tuple(str(exc).splitlines()))
+    app = config.applications.get("technitium")
+    if app is None or app.credential != "technitium-admin":
+        return OperationResult(
+            False,
+            "Technitium administrator credential",
+            ("Run 'Prepare network foundation' first.",),
+        )
+    try:
+        hint = masked_service_credential_hint(resolve_secrets_path(), "technitium-admin")
+    except SecretError:
+        hint = None
+    return OperationResult(
+        True,
+        "Technitium administrator credential",
+        (
+            "SOPS path: credentials.technitium-admin.value",
+            f"Encrypted credentials: {resolve_secrets_path()}",
+            (
+                "Existing credential is available to keep"
+                if hint is not None
+                else "A new unique credential of at least 12 characters is required"
+            ),
+            "The value remains masked and is never written to logs or command arguments",
+        ),
+        secret_hint=hint,
+    )
+
+
+def confirm_technitium_credential(path: Path) -> OperationResult:
+    try:
+        validate_service_credential(resolve_secrets_path(), "technitium-admin")
+    except SecretError as exc:
+        return OperationResult(False, "Technitium administrator credential", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Technitium administrator credential",
+        ("Existing encrypted Technitium credential kept unchanged",),
+    )
+
+
+def set_technitium_credential(path: Path, value: str) -> OperationResult:
+    try:
+        secret_path, _, _, _, _ = ensure_secret_store()
+        set_service_credential(secret_path, "technitium-admin", value)
+        validate_service_credential(secret_path, "technitium-admin")
+    except SecretError as exc:
+        return OperationResult(False, "Technitium administrator credential", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Technitium administrator credential",
+        (
+            f"Stored credentials.technitium-admin.value in {secret_path}",
+            "Encrypted credential validated and ready for DNS configuration",
+        ),
+    )
+
+
 def validate_router_configuration(path: Path) -> OperationResult:
     desired_path = _mikrotik_desired_path(path)
     try:
@@ -265,6 +447,40 @@ def apply_dns_helper_deployment(path: Path) -> OperationResult:
         (
             f"{action} {result.guest} at {result.address}",
             "Technitium service is active and matches the pinned version",
+            f"Diagnostic log: {result.diagnostic_log}",
+        ),
+    )
+
+
+def preview_dns_configuration(path: Path) -> OperationResult:
+    try:
+        lines = application_plan(path, application_type="technitium")
+        result = run_applications(path, check=True, application_type="technitium")
+    except (ApplicationError, ConfigurationError, SecretError) as exc:
+        return OperationResult(False, "Replacement DNS configuration", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Replacement DNS configuration",
+        (
+            *lines,
+            *result.lines,
+            "The preview made no DNS service changes",
+        ),
+    )
+
+
+def apply_dns_configuration(path: Path) -> OperationResult:
+    try:
+        result = run_applications(path, check=False, application_type="technitium")
+    except (ApplicationError, ConfigurationError, SecretError) as exc:
+        return OperationResult(False, "Configure replacement DNS", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Configure replacement DNS",
+        (
+            *result.lines,
+            f"Technitium configuration and health checks passed on {result.guest}",
+            "Internal zone, reverse records, recursion ACL, encrypted forwarders, and firewall applied",
             f"Diagnostic log: {result.diagnostic_log}",
         ),
     )
@@ -801,15 +1017,50 @@ OPERATIONS: tuple[Operation, ...] = (
         "Show the complete non-secret router design and every recovery gate.",
         router_configuration_status,
         section="router",
+        visible=False,
+        sequence=5,
+    ),
+    Operation(
+        "network-foundation",
+        "Prepare network foundation",
+        "Add the accepted replacement DNS guest and application to the active site configuration.",
+        prepare_network_foundation,
+        section="router",
+        destructive=True,
+        plan=network_foundation_plan,
+        sequence=20,
+    ),
+    Operation(
+        "router-automation-ssh",
+        "Prepare DNS automation key",
+        "Create and register the SSH key that the DNS helper installs for configuration.",
+        prepare_automation_ssh,
+        section="router",
+        destructive=True,
+        plan=automation_ssh_plan,
         sequence=10,
     ),
     Operation(
+        "technitium-credential",
+        "Set DNS administrator credential",
+        "Securely add or replace credentials.technitium-admin.value through SOPS.",
+        confirm_technitium_credential,
+        section="router",
+        destructive=True,
+        plan=technitium_credential_plan,
+        secret_prompt=(
+            "Enter a unique Technitium administrator password (at least 12 characters). "
+            "It stays masked and is sent directly to SOPS."
+        ),
+        sequence=30,
+    ),
+    Operation(
         "router-validate",
-        "Validate router design",
-        "Validate all ports, VLANs, Wi-Fi, DNS, firewall, services, and address policy.",
+        "Validate final network design",
+        "Validate all router ports, VLANs, Wi-Fi, DNS, firewall, services, and address policy.",
         validate_router_configuration,
         section="router",
-        sequence=20,
+        sequence=40,
     ),
     Operation(
         "dns-helper-plan",
@@ -817,7 +1068,8 @@ OPERATIONS: tuple[Operation, ...] = (
         "Review the exact pinned Proxmox Community Scripts deployment without changing Proxmox.",
         preview_dns_helper_deployment,
         section="router",
-        sequence=30,
+        visible=False,
+        sequence=45,
     ),
     Operation(
         "dns-helper-apply",
@@ -827,7 +1079,17 @@ OPERATIONS: tuple[Operation, ...] = (
         section="router",
         destructive=True,
         plan=preview_dns_helper_deployment,
-        sequence=40,
+        sequence=50,
+    ),
+    Operation(
+        "dns-configure",
+        "Configure and validate replacement DNS",
+        "Preview, apply, and health-check Technitium before any router DNS cutover.",
+        apply_dns_configuration,
+        section="router",
+        destructive=True,
+        plan=preview_dns_configuration,
+        sequence=60,
     ),
     Operation(
         "router-render",
@@ -835,7 +1097,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Write a secret-free, hard-stopped RouterOS proposal and per-VLAN test matrix.",
         render_router_proposal,
         section="router",
-        sequence=50,
+        sequence=70,
     ),
     Operation(
         "router-readiness",
@@ -843,7 +1105,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Explain which recovery and rollback requirements still block router changes.",
         check_router_change_readiness,
         section="router",
-        sequence=60,
+        sequence=80,
     ),
     Operation(
         "automation-ssh",
@@ -935,6 +1197,12 @@ def execute(identifier: str, path: str | Path | None = None) -> OperationResult:
 def execute_with_secret(
     identifier: str, secret: str, path: str | Path | None = None
 ) -> OperationResult:
-    if identifier != "cloudflare-token":
-        raise KeyError(f"Operation does not accept secret input: {identifier}")
-    return set_cloudflare_credential(resolve_config_path(path), secret)
+    handlers: dict[str, Callable[[Path, str], OperationResult]] = {
+        "cloudflare-token": set_cloudflare_credential,
+        "technitium-credential": set_technitium_credential,
+    }
+    try:
+        handler = handlers[identifier]
+    except KeyError as exc:
+        raise KeyError(f"Operation does not accept secret input: {identifier}") from exc
+    return handler(resolve_config_path(path), secret)

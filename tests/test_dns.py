@@ -17,7 +17,8 @@ from homelabctl.dns import (
     dns_provision_plan,
     provision_dns_lxc,
 )
-from homelabctl.models import HomelabConfig
+from homelabctl.models import HomelabConfig, default_config
+from homelabctl.operations import prepare_network_foundation
 
 EXAMPLE = Path(__file__).parents[1] / "config" / "examples" / "dns-core-site.yaml"
 PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey homelab"
@@ -43,6 +44,45 @@ def test_dns_plan_uses_one_helper_owner_and_immutable_revision(tmp_path: Path) -
     assert TECHNITIUM_ENTRY_SHA256 in rendered
     assert BUILD_FUNC_SHA256 in rendered
     assert "never overwritten" in rendered
+
+
+def test_menu_prepares_dns_in_active_site_without_replacing_existing_resources(
+    tmp_path: Path,
+) -> None:
+    data = default_config().model_dump(mode="json")
+    data["network"].update(
+        management_cidr="192.168.30.0/24",
+        gateway="192.168.30.1",
+        dns_servers=["192.168.30.2", "192.168.30.3"],
+        vlan_id=30,
+    )
+    data["automation"]["ssh_public_keys"] = [PUBLIC_KEY]
+    data["proxmox"]["containers"] = [
+        {
+            "key": "monitoring",
+            "vm_id": 201,
+            "hostname": "monitoring",
+            "template_file_id": "local:vztmpl/ubuntu-24.04-standard.tar.zst",
+            "address": "192.168.30.201/24",
+        }
+    ]
+    data["applications"] = {
+        "uptime-kuma": {"type": "uptime-kuma", "guest": "monitoring", "port": 3001}
+    }
+    config = HomelabConfig.model_validate(data)
+    path = save_config(config, tmp_path / "site.yaml")
+
+    first = prepare_network_foundation(path)
+    second = prepare_network_foundation(path)
+    saved = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    assert first.succeeded and second.succeeded
+    assert {guest["key"] for guest in saved["proxmox"]["containers"]} == {
+        "monitoring",
+        "dns-core01",
+    }
+    assert set(saved["applications"]) == {"uptime-kuma", "technitium"}
+    assert saved["applications"]["technitium"]["credential"] == "technitium-admin"
 
 
 def test_dns_plan_refuses_opentofu_ownership(tmp_path: Path) -> None:

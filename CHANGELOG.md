@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 ## Unreleased
 
 - Keep the active-operation progress indicator fixed above the scrolling action workspace.
+- Replace the fragmented Router/DNS workflow with one dependency-ordered menu sequence that
+  prepares the active site, captures the masked Technitium administrator credential directly
+  through SOPS, provisions and configures DNS, and then advances to router cutover gates.
 
 ### Added
 
