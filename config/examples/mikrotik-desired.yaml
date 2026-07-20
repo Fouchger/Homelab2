@@ -17,7 +17,7 @@ recovery:
   credential_rotated: false
   fresh_secret_free_export: true
   encrypted_off_router_backup: false
-  wired_management_tested: false
+  wired_management_tested: true
   safe_mode_rehearsed: false
   rollback_rehearsed: false
 ports:

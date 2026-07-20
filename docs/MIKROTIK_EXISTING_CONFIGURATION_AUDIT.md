@@ -123,6 +123,12 @@ snapshot. Router Safe Mode, wired laptop access, current export, encrypted binar
 copy, and rollback have not yet been recorded as a single proven recovery procedure. This is a hard
 gate for issue #18 and for all live router changes.
 
+Update 2026-07-21: the wired portion is now proven. A Windows laptop linked at 1 Gbps full duplex,
+received `192.168.20.194` from `dhcp-vlan20`, and appeared in the RouterOS bridge host table on
+`ether3` with VLAN 20. Traffic bound explicitly to the Ethernet address reached the router,
+Proxmox, both existing DNS servers, and the internet. Router SSH/Winbox, Proxmox SSH, outbound HTTPS,
+and DNS over UDP and TCP all passed. Safe Mode, encrypted backup, and rollback remain unproven.
+
 ### Medium: Wi-Fi state is asymmetric
 
 The 5 GHz users, IoT, and guest interfaces were running, while its management virtual interface was

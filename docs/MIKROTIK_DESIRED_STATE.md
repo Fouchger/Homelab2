@@ -86,7 +86,7 @@ to convert candidate additions into ordered `set`, `add`, `disable`, and rollbac
 
 ## Live-change gates
 
-The fresh secret-free export gate is complete. The other recovery gates remain false and may be
-marked complete only when evidence exists for credential rotation, encrypted off-router backup,
-wired VLAN 20 management, Safe Mode rehearsal, and rollback rehearsal. Even after all flags are
+The fresh secret-free export and wired VLAN 20 recovery gates are complete. The other recovery
+gates remain false and may be marked complete only when evidence exists for credential rotation,
+encrypted off-router backup, Safe Mode rehearsal, and rollback rehearsal. Even after all flags are
 true, this phase has no apply command; live execution requires a separately reviewed implementation.

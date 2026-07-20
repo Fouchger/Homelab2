@@ -72,7 +72,6 @@ def test_proposal_is_secret_free_hard_stopped_and_complete(tmp_path: Path) -> No
     assert plan["blocked_recovery_gates"] == [
         "credential_rotated",
         "encrypted_off_router_backup",
-        "wired_management_tested",
         "safe_mode_rehearsed",
         "rollback_rehearsed",
     ]
