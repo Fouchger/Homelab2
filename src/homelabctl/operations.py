@@ -34,6 +34,11 @@ from homelabctl.configuration import (
     save_config,
 )
 from homelabctl.doctor import checks_succeeded, run_checks
+from homelabctl.mikrotik import (
+    MikroTikError,
+    load_mikrotik_desired_state,
+    write_mikrotik_proposal,
+)
 from homelabctl.proxmox_bootstrap import (
     ProxmoxBootstrapError,
     ProxmoxTokenRecoveryRequired,
@@ -141,6 +146,100 @@ def configuration_summary(path: Path) -> OperationResult:
         redacted_mapping(config), sort_keys=False, allow_unicode=True, default_flow_style=False
     )
     return OperationResult(True, "Configuration summary", tuple(rendered.rstrip().splitlines()))
+
+
+def _mikrotik_desired_path(path: Path) -> Path:
+    return find_project_root(path.parent) / "config" / "examples" / "mikrotik-desired.yaml"
+
+
+def router_configuration_status(path: Path) -> OperationResult:
+    desired_path = _mikrotik_desired_path(path)
+    try:
+        state = load_mikrotik_desired_state(desired_path)
+    except MikroTikError as exc:
+        return OperationResult(False, "Router configuration status", tuple(str(exc).splitlines()))
+    gates = state.recovery.model_dump()
+    lines = (
+        f"Router: {state.router.model} | RouterOS {state.router.validated_version} stable",
+        f"Administrator: {state.identity.username} | password stored only in SOPS",
+        "VLANs: " + ", ".join(str(network.vlan_id) for network in state.networks),
+        "Address policy: static .1-.150 | DHCP .151-.254",
+        "Replacement DNS: " + ", ".join(str(server) for server in state.dns.replacement_servers),
+        *(
+            f"[{'PASS' if complete else 'BLOCKED'}] {name.replace('_', ' ')}"
+            for name, complete in gates.items()
+        ),
+        f"Desired state: {desired_path}",
+    )
+    return OperationResult(True, "Router configuration status", lines)
+
+
+def validate_router_configuration(path: Path) -> OperationResult:
+    desired_path = _mikrotik_desired_path(path)
+    try:
+        state = load_mikrotik_desired_state(desired_path)
+    except MikroTikError as exc:
+        return OperationResult(False, "Validate router configuration", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Validate router configuration",
+        (
+            f"Validated complete desired state: {desired_path}",
+            f"Physical ports: {len(state.ports)}",
+            f"Internal VLANs: {len(state.networks)}",
+            f"Wi-Fi interfaces: {len(state.wifi)}",
+            "No router connection or configuration change was performed",
+        ),
+    )
+
+
+def render_router_proposal(path: Path) -> OperationResult:
+    root = find_project_root(path.parent)
+    output = root / "artifacts" / "mikrotik-proposal"
+    try:
+        files = write_mikrotik_proposal(_mikrotik_desired_path(path), output)
+    except (MikroTikError, OSError) as exc:
+        return OperationResult(False, "Render router proposal", tuple(str(exc).splitlines()))
+    return OperationResult(
+        True,
+        "Render router proposal",
+        (
+            "Generated a secret-free no-apply proposal",
+            *(f"Review: {file}" for file in files),
+            "The RouterOS candidate begins with a hard stop and cannot apply changes",
+        ),
+    )
+
+
+def check_router_change_readiness(path: Path) -> OperationResult:
+    desired_path = _mikrotik_desired_path(path)
+    try:
+        state = load_mikrotik_desired_state(desired_path)
+    except MikroTikError as exc:
+        return OperationResult(False, "Router live-change readiness", tuple(str(exc).splitlines()))
+    missing = [
+        name.replace("_", " ")
+        for name, complete in state.recovery.model_dump().items()
+        if not complete
+    ]
+    if missing:
+        return OperationResult(
+            False,
+            "Router live-change readiness",
+            (
+                "Live router configuration is blocked",
+                *(f"Required: {gate}" for gate in missing),
+                "No Apply action is exposed until recovery and rollback are proven",
+            ),
+        )
+    return OperationResult(
+        True,
+        "Router live-change readiness",
+        (
+            "All recovery gates are complete",
+            "A reviewed exact live diff and inverse rollback are still required before Apply",
+        ),
+    )
 
 
 def control_plane_update_plan(path: Path) -> OperationResult:
@@ -667,6 +766,38 @@ OPERATIONS: tuple[Operation, ...] = (
         destructive=True,
         visible=False,
         sequence=30,
+    ),
+    Operation(
+        "router-status",
+        "Review router status",
+        "Show the complete non-secret router design and every recovery gate.",
+        router_configuration_status,
+        section="router",
+        sequence=10,
+    ),
+    Operation(
+        "router-validate",
+        "Validate router design",
+        "Validate all ports, VLANs, Wi-Fi, DNS, firewall, services, and address policy.",
+        validate_router_configuration,
+        section="router",
+        sequence=20,
+    ),
+    Operation(
+        "router-render",
+        "Generate review proposal",
+        "Write a secret-free, hard-stopped RouterOS proposal and per-VLAN test matrix.",
+        render_router_proposal,
+        section="router",
+        sequence=30,
+    ),
+    Operation(
+        "router-readiness",
+        "Check live-change readiness",
+        "Explain which recovery and rollback requirements still block router changes.",
+        check_router_change_readiness,
+        section="router",
+        sequence=40,
     ),
     Operation(
         "automation-ssh",

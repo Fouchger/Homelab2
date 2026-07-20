@@ -14,18 +14,26 @@ Navigation keys:
 | `2` | Configuration |
 | `3` | Setup |
 | `4` | Proxmox |
-| `5` | Infrastructure |
-| `6` | Maintenance |
-| `7` | Diagnostics |
+| `5` | Router |
+| `6` | Infrastructure |
+| `7` | Maintenance |
+| `8` | Diagnostics |
 | `c` | Open the activity copy view |
 | `?` | Help and safety |
 | `q` | Quit |
 
 Actions are grouped by purpose instead of appearing in one large Operations page. Setup contains
-configuration, credential preparation, and guarded Ansible prerequisite installation; Proxmox contains administrator bootstrap actions,
-Infrastructure contains OpenTofu checks plus guest inventory and baseline operations, Maintenance contains control-plane updates, and
-Diagnostics contains readiness and effective-setting reports. Each section presents its actions
-as sub-actions and shares the same session activity history.
+configuration, credential preparation, and guarded Ansible prerequisite installation; Proxmox
+contains administrator bootstrap actions; Router reviews and validates the complete MikroTik
+design, generates a hard-stopped proposal, and reports the remaining recovery gates;
+Infrastructure contains OpenTofu checks plus guest inventory and baseline operations; Maintenance
+contains control-plane updates; and Diagnostics contains readiness and effective-setting reports.
+Each section presents its actions as sub-actions and shares the same session activity history.
+
+The Router page deliberately has no live **Apply** action. Live configuration remains blocked
+until credential rotation, an encrypted off-router backup, a Safe Mode rehearsal, and a rollback
+rehearsal are complete. Its status, validation, proposal, and readiness actions do not connect to
+or change the router.
 
 Every operation displays a live progress banner with its current stage and elapsed time. While a
 long-running command is active, the banner updates every second and the portable activity history

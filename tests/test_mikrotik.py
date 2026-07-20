@@ -13,8 +13,15 @@ from homelabctl.mikrotik import (
     load_mikrotik_desired_state,
     write_mikrotik_proposal,
 )
+from homelabctl.operations import (
+    OPERATIONS,
+    check_router_change_readiness,
+    router_configuration_status,
+    validate_router_configuration,
+)
 
 EXAMPLE = Path(__file__).parents[1] / "config" / "examples" / "mikrotik-desired.yaml"
+SITE_CONFIG = Path(__file__).parents[1] / "config" / "examples" / "site.yaml"
 
 
 def example_data() -> dict[str, object]:
@@ -94,3 +101,19 @@ def test_cli_validates_and_renders_without_router_access(
     assert main(["mikrotik", "render", "--file", str(EXAMPLE), "--output", str(tmp_path)]) == 0
     assert "hard stop" in capsys.readouterr().out
     assert (tmp_path / "mikrotik-plan.json").is_file()
+
+
+def test_router_menu_operations_are_safe_and_report_remaining_gates() -> None:
+    status = router_configuration_status(SITE_CONFIG)
+    validation = validate_router_configuration(SITE_CONFIG)
+    readiness = check_router_change_readiness(SITE_CONFIG)
+
+    assert status.succeeded
+    assert "RouterOS 7.23.2 stable" in "\n".join(status.lines)
+    assert "[PASS] wired management tested" in status.lines
+    assert validation.succeeded
+    assert "No router connection or configuration change was performed" in validation.lines
+    assert not readiness.succeeded
+    assert "Required: credential rotated" in readiness.lines
+    assert "No Apply action is exposed until recovery and rollback are proven" in readiness.lines
+    assert "router-apply" not in {operation.identifier for operation in OPERATIONS}

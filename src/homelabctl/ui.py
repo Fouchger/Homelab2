@@ -596,6 +596,10 @@ ACTION_SECTIONS: dict[str, tuple[str, str]] = {
         "Proxmox",
         "Establish administrator access and reconcile the least-privilege API identity.",
     ),
+    "router": (
+        "Router",
+        "Review the complete MikroTik design and recovery gates before any live change.",
+    ),
     "infrastructure": (
         "Infrastructure",
         "Validate infrastructure definitions and preview changes before deployment.",
@@ -614,9 +618,10 @@ ACTION_SECTIONS: dict[str, tuple[str, str]] = {
 SECTION_KEYS: dict[str, str] = {
     "setup": "3",
     "proxmox": "4",
-    "infrastructure": "5",
-    "maintenance": "6",
-    "diagnostics": "7",
+    "router": "5",
+    "infrastructure": "6",
+    "maintenance": "7",
+    "diagnostics": "8",
 }
 
 
@@ -631,6 +636,7 @@ OPERATION_STATUS: dict[str, tuple[str, str]] = {
 SECTION_GUIDANCE: dict[str, str] = {
     "setup": "Follow the steps in order. The Cloudflare token step is needed only when external domains are configured.",
     "proxmox": "Prepare administrator SSH access before bootstrapping the API identity.",
+    "router": "Review status, validate the whole design, generate a no-apply proposal, then check the remaining gates.",
     "infrastructure": "Follow the steps in order: guest key, OpenTofu, inventory, baseline, then applications.",
     "maintenance": "Review the update plan before applying it.",
     "diagnostics": "Run readiness first, then inspect the effective non-secret settings if needed.",
@@ -701,8 +707,8 @@ class HelpPage(VerticalScroll):
         yield Static("Keyboard", classes="section-title")
         yield Static(
             "[b]1[/b] Overview   [b]2[/b] Configuration   [b]3[/b] Setup   "
-            "[b]4[/b] Proxmox   [b]5[/b] Infrastructure   [b]6[/b] Maintenance   "
-            "[b]7[/b] Diagnostics   [b]?[/b] Help   [b]Q[/b] Quit",
+            "[b]4[/b] Proxmox   [b]5[/b] Router   [b]6[/b] Infrastructure   "
+            "[b]7[/b] Maintenance   [b]8[/b] Diagnostics   [b]?[/b] Help   [b]Q[/b] Quit",
             classes="notice",
         )
         yield Static("Configuration policy", classes="section-title")
@@ -720,8 +726,8 @@ class HelpPage(VerticalScroll):
         )
         yield Static("Activity and support", classes="section-title")
         yield Static(
-            "Action results are retained across Setup, Proxmox, Infrastructure, Maintenance, "
-            "and Diagnostics for this session. Select View / copy activity, or press C, to open "
+            "Action results are retained across Setup, Proxmox, Router, Infrastructure, "
+            "Maintenance, and Diagnostics for this session. Select View / copy activity, or press C, to open "
             "a portable plain-text copy view without colour markup or secret values.",
             classes="body-copy",
         )
@@ -738,9 +744,10 @@ class ControlPlaneApp(App[None]):
         ("2", "show_page('configuration')", "Configuration"),
         ("3", "show_page('setup')", "Setup"),
         ("4", "show_page('proxmox')", "Proxmox"),
-        ("5", "show_page('infrastructure')", "Infrastructure"),
-        ("6", "show_page('maintenance')", "Maintenance"),
-        ("7", "show_page('diagnostics')", "Diagnostics"),
+        ("5", "show_page('router')", "Router"),
+        ("6", "show_page('infrastructure')", "Infrastructure"),
+        ("7", "show_page('maintenance')", "Maintenance"),
+        ("8", "show_page('diagnostics')", "Diagnostics"),
         ("c", "copy_activity", "Copy activity"),
         ("?", "show_page('help')", "Help"),
     ]
@@ -919,9 +926,10 @@ class ControlPlaneApp(App[None]):
                 yield Button("2  Configuration", id="nav-configuration", classes="nav-button")
                 yield Button("3  Setup", id="nav-setup", classes="nav-button")
                 yield Button("4  Proxmox", id="nav-proxmox", classes="nav-button")
-                yield Button("5  Infrastructure", id="nav-infrastructure", classes="nav-button")
-                yield Button("6  Maintenance", id="nav-maintenance", classes="nav-button")
-                yield Button("7  Diagnostics", id="nav-diagnostics", classes="nav-button")
+                yield Button("5  Router", id="nav-router", classes="nav-button")
+                yield Button("6  Infrastructure", id="nav-infrastructure", classes="nav-button")
+                yield Button("7  Maintenance", id="nav-maintenance", classes="nav-button")
+                yield Button("8  Diagnostics", id="nav-diagnostics", classes="nav-button")
                 yield Button("?  Help", id="nav-help", classes="nav-button")
                 yield Static(f"CONFIG\n{self.config_path}", id="config-path")
             with ContentSwitcher(initial=self.initial_page, id="pages"):

@@ -88,6 +88,7 @@ def build_parser() -> argparse.ArgumentParser:
             "configuration",
             "setup",
             "proxmox",
+            "router",
             "infrastructure",
             "maintenance",
             "diagnostics",

@@ -104,11 +104,16 @@ async def test_actions_are_grouped_in_meaningful_navigation_sections(tmp_path: P
         assert app.query_one("#pages").current == "proxmox"
         assert app.query_one("#operation-proxmox-bootstrap", Button)
 
-        await pilot.press("6")
+        await pilot.press("5")
+        assert app.query_one("#pages").current == "router"
+        assert app.query_one("#operation-router-status", Button)
+        assert app.query_one("#operation-router-readiness", Button)
+
+        await pilot.press("7")
         assert app.query_one("#pages").current == "maintenance"
         assert app.query_one("#operation-update", Button)
 
-        await pilot.press("7")
+        await pilot.press("8")
         assert app.query_one("#pages").current == "diagnostics"
         assert app.query_one("#operation-doctor", Button)
 
@@ -163,9 +168,10 @@ async def test_every_menu_renders_all_visible_actions_in_execution_order(tmp_pat
     page_keys = {
         "setup": "3",
         "proxmox": "4",
-        "infrastructure": "5",
-        "maintenance": "6",
-        "diagnostics": "7",
+        "router": "5",
+        "infrastructure": "6",
+        "maintenance": "7",
+        "diagnostics": "8",
     }
 
     async with app.run_test(size=(140, 48)) as pilot:
@@ -221,7 +227,7 @@ async def test_compact_menu_stacks_every_infrastructure_action(tmp_path: Path) -
     app = ControlPlaneApp(tmp_path / "site.yaml")
 
     async with app.run_test(size=(80, 24)) as pilot:
-        await pilot.press("5")
+        await pilot.press("6")
         await pilot.pause()
         buttons = app.query("#infrastructure .operation-card Button").results(Button)
         positions = [button.region.y for button in buttons]
@@ -433,7 +439,7 @@ async def test_opentofu_operation_is_reachable_in_very_wide_layout(
     app = ControlPlaneApp(tmp_path / "site.yaml")
 
     async with app.run_test(size=(140, 48)) as pilot:
-        await pilot.press("5")
+        await pilot.press("6")
         await pilot.pause()
         first_action = app.query_one("#operation-automation-ssh", Button)
         assert app.query_one("#operation-tofu-apply", Button)
@@ -482,7 +488,7 @@ async def test_activity_can_be_copied_as_plain_text(tmp_path: Path, monkeypatch)
     app._clock = Mock(side_effect=[100.0, 100.0])
 
     async with app.run_test(size=(140, 48)) as pilot:
-        await pilot.press("5")
+        await pilot.press("6")
         await pilot.click("#operation-tofu-check")
         await pilot.pause()
         await pilot.press("c")
