@@ -4,7 +4,10 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "const": "uptime-kuma",
+          "enum": [
+            "uptime-kuma",
+            "technitium"
+          ],
           "title": "Type",
           "type": "string"
         },
@@ -23,6 +26,18 @@
           "minimum": 1024,
           "title": "Port",
           "type": "integer"
+        },
+        "credential": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credential"
         }
       },
       "required": [

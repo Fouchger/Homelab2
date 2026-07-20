@@ -31,6 +31,11 @@ from homelabctl.configuration import (
 from homelabctl.discovery import DiscoveryError, write_read_only_evidence
 from homelabctl.doctor import checks_succeeded, run_checks
 from homelabctl.manifest import ManifestError, load_manifest, write_manifest_schema
+from homelabctl.mikrotik import (
+    MikroTikError,
+    load_mikrotik_desired_state,
+    write_mikrotik_proposal,
+)
 from homelabctl.operations import prepare_automation_ssh
 from homelabctl.proxmox_bootstrap import (
     DEFAULT_ROLE_ID,
@@ -238,6 +243,24 @@ def build_parser() -> argparse.ArgumentParser:
     discovery_evidence.add_argument(
         "--output", type=Path, default=Path("artifacts/discovery-admission.json")
     )
+
+    mikrotik = subcommands.add_parser(
+        "mikrotik", help="validate and render a no-apply RouterOS proposal"
+    )
+    mikrotik_commands = mikrotik.add_subparsers(dest="mikrotik_command", required=True)
+    mikrotik_validate = mikrotik_commands.add_parser(
+        "validate", help="validate the complete secret-free router desired state"
+    )
+    mikrotik_validate.add_argument(
+        "--file", type=Path, default=Path("config/examples/mikrotik-desired.yaml")
+    )
+    mikrotik_render = mikrotik_commands.add_parser(
+        "render", help="write a hard-stopped review proposal without contacting the router"
+    )
+    mikrotik_render.add_argument(
+        "--file", type=Path, default=Path("config/examples/mikrotik-desired.yaml")
+    )
+    mikrotik_render.add_argument("--output", type=Path, default=Path("artifacts/mikrotik-proposal"))
 
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
     schema.add_argument("--output", type=Path, default=Path("config/schema/site.schema.json"))
@@ -497,6 +520,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             console.print(f"[green]Wrote sanitized read-only evidence:[/] {path}")
             console.print("[yellow]No production mutation was performed.[/]")
             return 0
+        if command == "mikrotik" and args.mikrotik_command == "validate":
+            state = load_mikrotik_desired_state(args.file)
+            console.print(
+                f"[green]Valid complete MikroTik desired state[/] | "
+                f"RouterOS {state.router.validated_version} | {len(state.networks)} VLANs"
+            )
+            if not state.recovery.ready:
+                console.print("[yellow]Live changes remain blocked by recovery gates.[/]")
+            return 0
+        if command == "mikrotik" and args.mikrotik_command == "render":
+            paths = write_mikrotik_proposal(args.file, args.output)
+            console.print(f"[green]Wrote no-apply MikroTik proposal:[/] {paths[0].parent}")
+            console.print(
+                "[yellow]The RouterOS candidate contains a hard stop and was not applied.[/]"
+            )
+            return 0
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
@@ -508,6 +547,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ConfigurationError,
         DiscoveryError,
         ManifestError,
+        MikroTikError,
         ProxmoxBootstrapError,
         SecretError,
         TofuError,

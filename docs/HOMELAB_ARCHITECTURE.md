@@ -37,8 +37,8 @@ The existing VLAN and address structure is retained as the starting contract.
 The Proxmox VLAN-aware bridge carries VLANs 20, 30, and 70. The Proxmox host remains at
 `192.168.20.10`. RouterOS owns gateways, DHCP, Wi-Fi, routing, NAT, and the inter-VLAN firewall.
 
-Static infrastructure and server addresses use host numbers `.1-.99`. Host numbers `.100-.200`
-are reserved outside normal pools. DHCP uses `.201-.254`. Existing assignments are transitioned
+Static infrastructure, servers, and explicit reservations use host numbers `.1-.150`. DHCP uses
+`.151-.254`. Existing assignments are transitioned
 only through reviewed, non-disruptive changes.
 
 ## Managed VMID groups
@@ -48,8 +48,8 @@ and never reused. `omv01` remains VMID 22000.
 
 | VMID range | Type | Planned resource |
 |---:|---|---|
-| 200-219 | Control and management | `control01` = 201 |
-| 220-239 | DNS and network core | `dns01` = 220 |
+| 200-219 | Control and management | `control01` = 200; `monitoring` retains 201 during migration |
+| 220-239 | DNS and network core | `dns-core01` = 220 |
 | 240-299 | Edge and operations | `edge01` = 240 |
 | 300-399 | Storage and backup | Reserved; `omv01` stays 22000 |
 | 400-499 | Media and photos | `media01` = 400 |
@@ -121,8 +121,8 @@ their required replacements or dependencies have been accepted:
 | 20000 | `apt-cacher-ng` | Confirm no guest package configuration depends on it |
 | 20011 | `udms01` | Confirm no required data or client dependency |
 | 20012 | `udms02` | Confirm no required data or client dependency |
-| 21001 | `dns01` | Replacement DNS serving every VLAN |
-| 21002 | `dns02` | Replacement DNS serving every VLAN |
+| 21001 | `dns01` | Existing DNS; retire after validated cutover to `dns-core01` |
+| 21002 | `dns02` | Existing DNS; retire after validated cutover to `dns-core01` |
 
 Being replaceable does not authorize Homelab2 to stop or delete a server. Homelab2 may build and
 validate a replacement and produce a retirement checklist, but only the operator may manually

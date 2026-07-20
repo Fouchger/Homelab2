@@ -122,7 +122,12 @@ def generate_inventory(
 
 
 def _run_ansible_with_live_output(
-    command: list[str], root: Path, diagnostic: Path, *, timeout_seconds: int = 300
+    command: list[str],
+    root: Path,
+    diagnostic: Path,
+    *,
+    timeout_seconds: int = 300,
+    environment_updates: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run Ansible with live output and a firm operation deadline."""
 
@@ -130,6 +135,7 @@ def _run_ansible_with_live_output(
     environment = os.environ.copy()
     environment["ANSIBLE_NOCOLOR"] = "1"
     environment["PYTHONUNBUFFERED"] = "1"
+    environment.update(environment_updates or {})
     output: list[str] = []
     try:
         with (

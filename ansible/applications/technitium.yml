@@ -1,0 +1,237 @@
+---
+- name: Install the curated Technitium DNS replacement
+  hosts: all
+  gather_facts: true
+  vars:
+    technitium_version: "15.4.0"
+    technitium_checksum: "sha256:461ac09d4304ace85093fc17b10a7ee13a8796eae0adb4393866bd4d66ab283f"
+    dotnet_version: "10.0.10"
+    dotnet_checksum: "sha512:4719249fcaca744b8edfa5b653366cabdd25f452a7cb9e961b8671ddd2f80eceef4bb8b74e0fad899f93e5c7c8b138890ff0bdb49f2daecb489455d9487a572b"
+    technitium_admin_password: "{{ lookup('ansible.builtin.env', 'HOMELAB_TECHNITIUM_ADMIN_PASSWORD') }}"
+  tasks:
+    - name: Require the approved DNS platform
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.os_family == "Debian"
+          - ansible_facts.architecture == "x86_64"
+          - technitium_web_port == 5380
+
+    - name: Require the encrypted DNS administrator credential
+      ansible.builtin.assert:
+        that: technitium_admin_password | length >= 12
+        fail_msg: The encrypted technitium-admin credential is required
+      no_log: true
+
+    - name: Install runtime prerequisites
+      ansible.builtin.apt:
+        name: [ca-certificates, curl, dnsutils, libicu74, tar]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the non-root DNS service account
+      ansible.builtin.user:
+        name: dns-server
+        system: true
+        home: /var/lib/technitium
+        create_home: true
+        shell: /usr/sbin/nologin
+
+    - name: Create immutable runtime and application directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - {path: /opt/dotnet/releases, owner: root, group: root, mode: "0755"}
+        - {path: /opt/technitium/releases, owner: root, group: root, mode: "0755"}
+        - {path: /etc/dns, owner: dns-server, group: dns-server, mode: "0700"}
+        - {path: /var/log/technitium/dns, owner: dns-server, group: dns-server, mode: "0700"}
+
+    - name: Download the pinned ASP.NET Core runtime
+      ansible.builtin.get_url:
+        url: "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/{{ dotnet_version }}/aspnetcore-runtime-{{ dotnet_version }}-linux-x64.tar.gz"
+        dest: "/var/cache/aspnetcore-runtime-{{ dotnet_version }}.tar.gz"
+        checksum: "{{ dotnet_checksum }}"
+        mode: "0644"
+      when: not ansible_check_mode
+
+    - name: Create the ASP.NET Core release directory
+      ansible.builtin.file:
+        path: "/opt/dotnet/releases/{{ dotnet_version }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: not ansible_check_mode
+
+    - name: Extract the approved ASP.NET Core runtime
+      ansible.builtin.unarchive:
+        src: "/var/cache/aspnetcore-runtime-{{ dotnet_version }}.tar.gz"
+        dest: "/opt/dotnet/releases/{{ dotnet_version }}"
+        remote_src: true
+        creates: "/opt/dotnet/releases/{{ dotnet_version }}/dotnet"
+      when: not ansible_check_mode
+
+    - name: Download the pinned Technitium archive
+      ansible.builtin.get_url:
+        url: https://download.technitium.com/dns/DnsServerPortable.tar.gz
+        dest: "/var/cache/technitium-{{ technitium_version }}.tar.gz"
+        checksum: "{{ technitium_checksum }}"
+        mode: "0644"
+      when: not ansible_check_mode
+
+    - name: Create the Technitium release directory
+      ansible.builtin.file:
+        path: "/opt/technitium/releases/{{ technitium_version }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: not ansible_check_mode
+
+    - name: Extract the approved Technitium release
+      ansible.builtin.unarchive:
+        src: "/var/cache/technitium-{{ technitium_version }}.tar.gz"
+        dest: "/opt/technitium/releases/{{ technitium_version }}"
+        remote_src: true
+        creates: "/opt/technitium/releases/{{ technitium_version }}/DnsServerApp.dll"
+      when: not ansible_check_mode
+
+    - name: Select the approved Technitium release
+      ansible.builtin.file:
+        src: "/opt/technitium/releases/{{ technitium_version }}"
+        dest: /opt/technitium/current
+        state: link
+        force: true
+      notify: Restart Technitium DNS
+      when: not ansible_check_mode
+
+    - name: Install the hardened Technitium service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/technitium-dns.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Technitium DNS Server
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=simple
+          User=dns-server
+          Group=dns-server
+          WorkingDirectory=/opt/technitium/current
+          ExecStart=/opt/dotnet/releases/{{ dotnet_version }}/dotnet /opt/technitium/current/DnsServerApp.dll /etc/dns
+          Restart=always
+          RestartSec=10
+          ReadWritePaths=/etc/dns /var/log/technitium/dns
+          LockPersonality=true
+          NoNewPrivileges=true
+          PrivateDevices=true
+          PrivateTmp=true
+          ProtectClock=true
+          ProtectControlGroups=true
+          ProtectHome=true
+          ProtectHostname=true
+          ProtectKernelLogs=true
+          ProtectKernelModules=true
+          ProtectKernelTunables=true
+          ProtectSystem=strict
+          RemoveIPC=true
+          RestrictRealtime=true
+          RestrictSUIDSGID=true
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+          CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+          UMask=0077
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart Technitium DNS
+      when: not ansible_check_mode
+
+    - name: Enable and start Technitium DNS
+      ansible.builtin.systemd_service:
+        name: technitium-dns
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: not ansible_check_mode
+
+    - name: Apply service changes before API initialization
+      ansible.builtin.meta: flush_handlers
+      when: not ansible_check_mode
+
+    - name: Wait for the local Technitium API
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/user/login"
+        method: POST
+        body_format: form-urlencoded
+        body: {user: admin, pass: "{{ technitium_admin_password }}", includeInfo: "true"}
+        status_code: [200, 401, 403]
+      register: desired_login
+      retries: 12
+      delay: 5
+      until: desired_login.status in [200, 401, 403]
+      no_log: true
+      when: not ansible_check_mode
+
+    - name: Authenticate with the one-time default credential
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/user/login"
+        method: POST
+        body_format: form-urlencoded
+        body: {user: admin, pass: admin, includeInfo: "true"}
+        status_code: 200
+      register: default_login
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - desired_login.json.status | default('error') != 'ok'
+
+    - name: Replace the one-time default password
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/user/changePassword"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ default_login.json.token }}"
+        body_format: form-urlencoded
+        body: {pass: admin, newPass: "{{ technitium_admin_password }}"}
+        status_code: 200
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - desired_login.json.status | default('error') != 'ok'
+
+    - name: Verify the encrypted administrator credential
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/user/login"
+        method: POST
+        body_format: form-urlencoded
+        body: {user: admin, pass: "{{ technitium_admin_password }}", includeInfo: "true"}
+        status_code: 200
+      register: verified_login
+      failed_when: verified_login.json.status | default('error') != 'ok'
+      no_log: true
+      when: not ansible_check_mode
+
+    - name: Verify recursive DNS over UDP
+      ansible.builtin.command: dig +time=5 +tries=1 @127.0.0.1 example.com A
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Verify recursive DNS over TCP
+      ansible.builtin.command: dig +tcp +time=5 +tries=1 @127.0.0.1 example.com A
+      changed_when: false
+      when: not ansible_check_mode
+
+  handlers:
+    - name: Restart Technitium DNS
+      ansible.builtin.systemd_service:
+        name: technitium-dns
+        state: restarted
+        daemon_reload: true

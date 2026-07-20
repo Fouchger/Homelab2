@@ -145,18 +145,36 @@ Invoke-DiscoverySsh `
     -IdentityFile $RouterIdentityFile
 
 $routerStateCommand = @(
+    ':put ###_SYSTEM_RESOURCE',
     '/system resource print',
+    ':put ###_PACKAGES',
     '/system package print',
+    ':put ###_INTERFACES',
     '/interface print detail without-paging',
+    ':put ###_BRIDGE_PORTS',
     '/interface bridge port print detail without-paging',
+    ':put ###_BRIDGE_VLANS',
     '/interface bridge vlan print detail without-paging',
+    ':put ###_IP_ADDRESSES',
     '/ip address print detail without-paging',
+    ':put ###_ROUTES',
     '/ip route print detail without-paging',
+    ':put ###_DHCP_SERVERS',
     '/ip dhcp-server print detail without-paging',
+    ':put ###_DHCP_NETWORKS',
     '/ip dhcp-server network print detail without-paging',
+    ':put ###_DHCP_LEASES',
+    '/ip dhcp-server lease print detail without-paging',
+    ':put ###_DNS',
     '/ip dns print',
+    ':put ###_FIREWALL_FILTER',
     '/ip firewall filter print stats without-paging',
-    '/ip firewall nat print stats without-paging'
+    ':put ###_FIREWALL_NAT',
+    '/ip firewall nat print stats without-paging',
+    ':put ###_USERS',
+    '/user print detail without-paging',
+    ':put ###_USER_GROUPS',
+    '/user group print detail without-paging'
 ) -join '; '
 Invoke-DiscoverySsh `
     -Target "$RouterUser@$RouterHost" `

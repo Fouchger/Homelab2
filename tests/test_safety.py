@@ -48,12 +48,12 @@ def test_discovered_raw_disk_can_never_enter_destructive_plan(action: str) -> No
 
 
 def test_new_vmid_and_address_collisions_are_refused() -> None:
-    snapshot = DiscoverySnapshot(vm_ids={201}, addresses={"192.168.30.53"})
+    snapshot = DiscoverySnapshot(vm_ids={200}, addresses={"192.168.30.53"})
 
     with pytest.raises(SafetyRefusal) as error:
         admit_plan(manifest(), snapshot, [])
 
-    assert "collides with discovered VMID 201" in str(error.value)
+    assert "collides with discovered VMID 200" in str(error.value)
     assert "collides with discovered address 192.168.30.53" in str(error.value)
 
 

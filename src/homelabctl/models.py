@@ -331,10 +331,11 @@ class DeploymentSettings(StrictModel):
 
 
 class ApplicationSettings(StrictModel):
-    type: Literal["uptime-kuma"]
+    type: Literal["uptime-kuma", "technitium"]
     guest: str
     enabled: bool = True
     port: int = Field(default=3001, ge=1024, le=65535)
+    credential: str | None = None
 
     @field_validator("guest")
     @classmethod
@@ -343,6 +344,26 @@ class ApplicationSettings(StrictModel):
         if not SITE_NAME_PATTERN.fullmatch(normalized):
             raise ValueError("use an existing stable guest key")
         return normalized
+
+    @field_validator("credential")
+    @classmethod
+    def validate_credential(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if not SITE_NAME_PATTERN.fullmatch(normalized):
+            raise ValueError("use an encrypted credential key")
+        return normalized
+
+    @model_validator(mode="after")
+    def require_application_settings(self) -> ApplicationSettings:
+        if self.type == "technitium" and not self.credential:
+            raise ValueError("Technitium requires an encrypted admin credential key")
+        if self.type == "technitium" and self.port != 5380:
+            raise ValueError("Technitium management must use its internal port 5380")
+        if self.type == "uptime-kuma" and self.credential:
+            raise ValueError("Uptime Kuma does not consume an installation credential")
+        return self
 
 
 class HomelabConfig(StrictModel):

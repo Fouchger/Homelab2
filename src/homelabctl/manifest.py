@@ -59,10 +59,8 @@ def _normalize_key(value: str) -> str:
 
 class AddressPolicy(ManifestModel):
     static_first: Literal[1] = 1
-    static_last: Literal[99] = 99
-    reserved_first: Literal[100] = 100
-    reserved_last: Literal[200] = 200
-    dhcp_first: Literal[201] = 201
+    static_last: Literal[150] = 150
+    dhcp_first: Literal[151] = 151
     dhcp_last: Literal[254] = 254
 
 
@@ -84,8 +82,12 @@ class NetworkManifest(ManifestModel):
     def validate_network(self) -> NetworkManifest:
         if self.cidr.prefixlen != 24:
             raise ValueError("Phase 6 networks must use /24 subnets")
-        if self.gateway not in self.cidr or int(str(self.gateway).split(".")[-1]) > 99:
-            raise ValueError("the gateway must be a static address in host range .1-.99")
+        if self.gateway not in self.cidr or not (
+            self.address_policy.static_first
+            <= int(str(self.gateway).split(".")[-1])
+            <= self.address_policy.static_last
+        ):
+            raise ValueError("the gateway must be a static address in host range .1-.150")
         return self
 
 
@@ -269,8 +271,15 @@ class HomelabManifest(ManifestModel):
             if guest.address.network != network.cidr:
                 raise ValueError(f"guest {guest.key} address must use network {network.key}")
             host = int(str(guest.address.ip).split(".")[-1])
-            if not 1 <= host <= 99 or guest.address.ip == network.gateway:
-                raise ValueError(f"guest {guest.key} requires an unused static address in .1-.99")
+            if (
+                not (
+                    network.address_policy.static_first
+                    <= host
+                    <= network.address_policy.static_last
+                )
+                or guest.address.ip == network.gateway
+            ):
+                raise ValueError(f"guest {guest.key} requires an unused static address in .1-.150")
 
         guest_keys = {guest.key for guest in self.guests}
         credential_keys = set(self.credentials)

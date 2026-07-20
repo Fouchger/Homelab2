@@ -20,7 +20,7 @@ def test_complete_future_state_example_validates() -> None:
 
     assert manifest.digest == manifest.digest
     assert len(manifest.digest) == 64
-    assert {guest.vm_id for guest in manifest.guests} == {201, 220, 240, 400, 22000}
+    assert {guest.vm_id for guest in manifest.guests} == {200, 220, 240, 400, 22000}
     assert next(guest for guest in manifest.guests if guest.key == "omv01").protected
 
 
@@ -46,7 +46,7 @@ def test_manifest_cli_validates_without_resolving_secrets(
     ("guest_key", "vm_id", "message"),
     [
         ("control01", 199, "VMIDs 200-219"),
-        ("dns01", 240, "VMIDs 220-239"),
+        ("dns-core01", 240, "VMIDs 220-239"),
         ("edge01", 220, "VMIDs 240-299"),
         ("media01", 399, "VMIDs 400-499"),
     ],
@@ -64,7 +64,7 @@ def test_static_and_dhcp_address_contract_is_enforced() -> None:
     data = future_state_data()
     data["guests"][0]["address"] = "192.168.20.201/24"
 
-    with pytest.raises(ValidationError, match=r"static address in \.1-\.99"):
+    with pytest.raises(ValidationError, match=r"static address in \.1-\.150"):
         HomelabManifest.model_validate(data)
 
 

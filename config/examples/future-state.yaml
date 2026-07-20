@@ -18,16 +18,16 @@ networks:
     purpose: Storage and backup traffic
 guests:
   - key: control01
-    vm_id: 201
+    vm_id: 200
     hostname: control01
     kind: lxc
     role: control
     network: management
     address: 192.168.20.11/24
     resources: {cores: 2, memory_mb: 2048, disk_gb: 32}
-  - key: dns01
+  - key: dns-core01
     vm_id: 220
-    hostname: dns01
+    hostname: dns-core01
     kind: lxc
     role: network-core
     network: servers
@@ -70,7 +70,8 @@ guests:
       - omv-data-disk-4
       - omv-data-disk-5
 credentials:
-  technitium-admin: {username: homelab-admin, secret_ref: sops://credentials.technitium-admin.value}
+  router-admin: {username: admin, secret_ref: sops://credentials.router-admin.value}
+  technitium-admin: {username: admin, secret_ref: sops://credentials.technitium-admin.value}
   authelia-admin: {username: homelab-admin, secret_ref: sops://credentials.authelia-admin.value}
   plex-admin: {username: plex-owner, secret_ref: sops://credentials.plex-admin.value}
   immich-admin: {username: homelab-admin, secret_ref: sops://credentials.immich-admin.value}
@@ -78,7 +79,7 @@ applications:
   - {key: homelab2, guest: control01, runtime: native, owner: homelab2}
   - {key: opentofu, guest: control01, runtime: native, owner: homelab2}
   - {key: ansible, guest: control01, runtime: native, owner: homelab2}
-  - {key: technitium, guest: dns01, runtime: native, owner: homelab2, stateful: true, credential: technitium-admin}
+  - {key: technitium, guest: dns-core01, runtime: native, owner: homelab2, stateful: true, credential: technitium-admin}
   - {key: socket-proxy, guest: edge01, runtime: docker-compose, owner: docker-compose}
   - {key: traefik, guest: edge01, runtime: docker-compose, owner: docker-compose}
   - {key: dockflare, guest: edge01, runtime: docker-compose, owner: docker-compose, stateful: true}

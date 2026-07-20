@@ -117,7 +117,7 @@ def test_read_only_evidence_passes_without_exposing_identifiers(tmp_path: Path) 
 def test_collision_evidence_reports_only_a_category(tmp_path: Path) -> None:
     manifest = load_manifest(future_manifest_path())
     proxmox = parse_proxmox_snapshot(
-        write_snapshot(tmp_path / "proxmox.txt", proxmox_snapshot(vm_id=201))
+        write_snapshot(tmp_path / "proxmox.txt", proxmox_snapshot(vm_id=200))
     )
     router = parse_router_snapshot(write_snapshot(tmp_path / "router.txt", router_snapshot()))
 

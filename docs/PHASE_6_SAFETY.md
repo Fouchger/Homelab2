@@ -9,7 +9,7 @@ state, stable usernames, SOPS secret references, and host-capacity limits. It en
 
 - Ubuntu 24.04 for new guests unless an exception reason is committed;
 - grouped VMIDs from 200 through 899, with `omv01` retained at VMID 22000;
-- static server addresses in `.1-.99`, a reserved `.100-.200` range, and DHCP in `.201-.254`;
+- static infrastructure and reservations in `.1-.150`, with DHCP in `.151-.254`;
 - exactly one owner for each guest, application, exposure, address, VMID, and raw disk;
 - backup and restore-test declarations for every stateful application; and
 - SOPS references in Git rather than passwords, tokens, or private keys.

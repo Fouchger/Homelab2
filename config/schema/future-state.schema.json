@@ -10,26 +10,14 @@
           "type": "integer"
         },
         "static_last": {
-          "const": 99,
-          "default": 99,
+          "const": 150,
+          "default": 150,
           "title": "Static Last",
           "type": "integer"
         },
-        "reserved_first": {
-          "const": 100,
-          "default": 100,
-          "title": "Reserved First",
-          "type": "integer"
-        },
-        "reserved_last": {
-          "const": 200,
-          "default": 200,
-          "title": "Reserved Last",
-          "type": "integer"
-        },
         "dhcp_first": {
-          "const": 201,
-          "default": 201,
+          "const": 151,
+          "default": 151,
           "title": "Dhcp First",
           "type": "integer"
         },

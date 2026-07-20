@@ -49,7 +49,7 @@ OpenTofu ownership or DockFlare ownership, never both.
 | System | Deployment | Initial sizing | Purpose |
 |---|---|---:|---|
 | `control01` | Unprivileged Ubuntu 24.04 LXC | 2 vCPU, 2 GiB RAM, 32 GiB | Homelab2, OpenTofu, Ansible, SOPS/age |
-| `dns01` | Unprivileged Ubuntu 24.04 LXC | 1 vCPU, 1 GiB, 4-8 GiB | Technitium DNS |
+| `dns-core01` | Unprivileged Ubuntu 24.04 LXC | 1 vCPU, 1 GiB, 8 GiB | Technitium DNS 15.4 |
 | `edge01` | Ubuntu 24.04 VM with Docker Compose | 2-4 vCPU, 4 GiB, 40-60 GiB | Ingress, authentication, monitoring, dashboard |
 | `media01` | Ubuntu 24.04 VM with Docker Compose | 6-8 vCPU, 10-12 GiB, 150 GiB | Plex, Immich, media application runtime, GPU owner |
 | `omv01` | Existing full VM | Existing 2 vCPU, 4 GiB, 32 GiB boot | Storage authority and backup destination |
@@ -73,8 +73,8 @@ even after an old guest is manually retired. OpenMediaVault remains VMID 22000.
 
 | VMID range | Resource type | Initial allocation |
 |---:|---|---|
-| 200-219 | Control and management | `control01` = 201; 200 remains reserved by the discovered monitoring guest |
-| 220-239 | DNS and network core | `dns01` = 220 |
+| 200-219 | Control and management | `control01` = 200; discovered `monitoring` retains 201 during migration |
+| 220-239 | DNS and network core | `dns-core01` = 220 |
 | 240-299 | Edge, ingress, authentication, and operations | `edge01` = 240 |
 | 300-399 | Future storage and backup services | `omv01` remains the explicit VMID 22000 exception |
 | 400-499 | Media and photo platforms | `media01` = 400 |
@@ -91,9 +91,8 @@ The same host-number policy applies to every `/24` VLAN:
 
 | Host range | Policy |
 |---:|---|
-| `.1-.99` | Static infrastructure and server addresses only |
-| `.100-.200` | Reserved for migration, diagnostics, or future policy; not in a normal DHCP pool |
-| `.201-.254` | DHCP only, including optional DHCP reservations |
+| `.1-.150` | Static infrastructure, servers, and explicit reservations |
+| `.151-.254` | DHCP only |
 
 Network `.0` and broadcast `.255` remain unusable. Existing assignments that do not yet follow the
 policy are migrated through a reviewed transition; they are not changed merely to make the numbers
@@ -109,7 +108,7 @@ look consistent.
 | OpenTofu | `control01` | Locked Homelab2 dependency | Homelab2 |
 | Ansible | `control01` | Locked Homelab2 dependency | Homelab2 |
 | SOPS and age | `control01` | Checksum-pinned installer | Homelab2 |
-| Technitium DNS | `dns01` | Pinned Community Scripts adapter | Homelab2 DNS adapter |
+| Technitium DNS 15.4 | `dns-core01` | Official portable release with pinned checksum | Homelab2 DNS adapter |
 
 ### Edge Docker stack
 

@@ -1,0 +1,68 @@
+schema_version: 1
+router:
+  model: hAP ax2
+  release_channel: stable
+  validated_version: 7.23.2
+  minimum_version: 7.23.2
+identity:
+  username: admin
+  password_secret_ref: sops://credentials.router-admin.value
+  ssh_public_key_file: ~/.ssh/homelab_router_ed25519.pub
+address_policy:
+  static_first: 1
+  static_last: 150
+  dhcp_first: 151
+  dhcp_last: 254
+recovery:
+  credential_rotated: false
+  fresh_secret_free_export: true
+  encrypted_off_router_backup: false
+  wired_management_tested: false
+  safe_mode_rehearsed: false
+  rollback_rehearsed: false
+ports:
+  - {name: ether1, role: wan}
+  - {name: ether2, role: trunk, tagged_vlans: [20, 30, 40, 70, 90]}
+  - {name: ether3, role: access, access_vlan: 20, recovery: true}
+  - {name: ether4, role: access, access_vlan: 40}
+  - {name: ether5, role: access, access_vlan: 40}
+networks:
+  - {key: management, vlan_id: 20, interface_name: VLAN20-MGMT, cidr: 192.168.20.0/24, gateway: 192.168.20.1, purpose: Managed systems and administration}
+  - {key: servers, vlan_id: 30, interface_name: VLAN30-SERVERS, cidr: 192.168.30.0/24, gateway: 192.168.30.1, purpose: Internal application servers}
+  - {key: users, vlan_id: 40, interface_name: VLAN40-USERS, cidr: 192.168.40.0/24, gateway: 192.168.40.1, purpose: Trusted user devices}
+  - {key: iot, vlan_id: 50, interface_name: VLAN50-IOT, cidr: 192.168.50.0/24, gateway: 192.168.50.1, purpose: Isolated IoT devices, wifi_only: true}
+  - {key: guests, vlan_id: 60, interface_name: VLAN60-GUEST, cidr: 192.168.60.0/24, gateway: 192.168.60.1, purpose: Isolated guest devices, wifi_only: true}
+  - {key: storage, vlan_id: 70, interface_name: VLAN70-STORAGE, cidr: 192.168.70.0/24, gateway: 192.168.70.1, purpose: Storage and backup traffic}
+  - {key: dmz, vlan_id: 90, interface_name: VLAN90-DMZ, cidr: 192.168.90.0/24, gateway: 192.168.90.1, purpose: Deliberately exposed services}
+wifi:
+  - {key: users-2g, ssid: Homelab, band: 2ghz, vlan_id: 40, security_secret_ref: sops://credentials.wifi-users.value}
+  - {key: users-5g, ssid: Homelab, band: 5ghz, vlan_id: 40, security_secret_ref: sops://credentials.wifi-users.value}
+  - {key: iot-2g, ssid: Homelab-IoT, band: 2ghz, vlan_id: 50, security_secret_ref: sops://credentials.wifi-iot.value}
+  - {key: iot-5g, ssid: Homelab-IoT, band: 5ghz, vlan_id: 50, security_secret_ref: sops://credentials.wifi-iot.value}
+  - {key: guest-2g, ssid: Homelab-Guest, band: 2ghz, vlan_id: 60, security_secret_ref: sops://credentials.wifi-guest.value}
+  - {key: guest-5g, ssid: Homelab-Guest, band: 5ghz, vlan_id: 60, security_secret_ref: sops://credentials.wifi-guest.value}
+  - {key: management-2g, ssid: Homelab-Mgmt, band: 2ghz, vlan_id: 20, enabled: false, security_secret_ref: sops://credentials.wifi-management.value}
+  - {key: management-5g, ssid: Homelab-Mgmt, band: 5ghz, vlan_id: 20, enabled: false, security_secret_ref: sops://credentials.wifi-management.value}
+dns:
+  client_mode: direct
+  existing_servers: [192.168.30.2, 192.168.30.3]
+  replacement_servers: [192.168.30.53]
+  client_servers: [192.168.30.53]
+  router_cache: false
+firewall:
+  default_input: drop
+  default_forward: drop
+  allow_internet_from: [20, 30, 40, 50, 60, 70, 90]
+  allow_management_from: [20]
+  log_final_drops: true
+  inbound_port_forwards: false
+services:
+  winbox: true
+  ssh: true
+  api: false
+  api_ssl: false
+  www: false
+  www_ssl: false
+  management_vlan: 20
+ntp_servers: [time.cloudflare.com, time.google.com]
+wireguard_state: pending

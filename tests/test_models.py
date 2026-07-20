@@ -6,6 +6,28 @@ from pydantic import ValidationError
 from homelabctl.models import HomelabConfig, default_config
 
 
+def test_dns_core_site_example_is_valid_and_secret_free() -> None:
+    from pathlib import Path
+
+    import yaml
+
+    source = Path(__file__).parents[1] / "config" / "examples" / "dns-core-site.yaml"
+    raw = source.read_text(encoding="utf-8")
+    config = HomelabConfig.model_validate(yaml.safe_load(raw))
+
+    assert config.proxmox.containers[0].vm_id == 220
+    assert str(config.proxmox.containers[0].address) == "192.168.30.53/24"
+    assert config.applications["technitium"].credential == "technitium-admin"
+    assert "password" not in raw.lower()
+
+
+def test_technitium_requires_credential_and_port_5380() -> None:
+    with pytest.raises(ValidationError, match="encrypted admin credential"):
+        HomelabConfig.model_validate(
+            {"applications": {"technitium": {"type": "technitium", "guest": "dns-core01"}}}
+        )
+
+
 def test_default_configuration_is_valid() -> None:
     config = default_config()
 
