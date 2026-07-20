@@ -121,6 +121,7 @@ def tofu_variables(config: HomelabConfig) -> dict[str, object]:
                 "tags": container.tags,
             }
             for container in sorted(config.proxmox.containers, key=lambda item: item.key)
+            if container.provisioner == "opentofu"
         ],
         "cloudflare_records": [
             {
@@ -224,8 +225,9 @@ def summarize_desired_infrastructure(config: HomelabConfig) -> tuple[str, ...]:
     summary = ["Configured infrastructure target:"]
     if config.proxmox.containers:
         for container in sorted(config.proxmox.containers, key=lambda item: item.key):
+            owner = "OpenTofu" if container.provisioner == "opentofu" else "Community Scripts"
             summary.append(
-                f'- Proxmox LXC "{container.hostname}": VMID {container.vm_id}, '
+                f'- {owner} LXC "{container.hostname}": VMID {container.vm_id}, '
                 f"{container.address}, {container.cores} vCPU, {container.memory_mb} MiB RAM, "
                 f"{container.disk_gb} GiB disk"
             )

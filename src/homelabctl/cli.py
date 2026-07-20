@@ -29,6 +29,7 @@ from homelabctl.configuration import (
     write_schema,
 )
 from homelabctl.discovery import DiscoveryError, write_read_only_evidence
+from homelabctl.dns import DnsProvisionError, dns_provision_plan, provision_dns_lxc
 from homelabctl.doctor import checks_succeeded, run_checks
 from homelabctl.manifest import ManifestError, load_manifest, write_manifest_schema
 from homelabctl.mikrotik import (
@@ -262,6 +263,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--file", type=Path, default=Path("config/examples/mikrotik-desired.yaml")
     )
     mikrotik_render.add_argument("--output", type=Path, default=Path("artifacts/mikrotik-proposal"))
+
+    dns = subcommands.add_parser("dns", help="provision the replacement DNS LXC")
+    dns_commands = dns.add_subparsers(dest="dns_command", required=True)
+    dns_provision = dns_commands.add_parser(
+        "provision", help="plan or run the pinned Proxmox Community Scripts deployment"
+    )
+    _add_config_argument(dns_provision)
+    dns_provision.add_argument("--apply", action="store_true")
 
     schema = subcommands.add_parser("schema", help="write the JSON Schema for site configuration")
     schema.add_argument("--output", type=Path, default=Path("config/schema/site.schema.json"))
@@ -537,6 +546,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "[yellow]The RouterOS candidate contains a hard stop and was not applied.[/]"
             )
             return 0
+        if command == "dns" and args.dns_command == "provision":
+            config_path = resolve_config_path(args.config)
+            plan = dns_provision_plan(config_path)
+            console.print("[bold cyan]Replacement DNS LXC plan[/]")
+            for line in plan.lines:
+                console.print(f"- {line}")
+            if not args.apply:
+                console.print("[yellow]Plan only. Re-run with --apply after review.[/]")
+                return 0
+            result = provision_dns_lxc(config_path)
+            action = "Created" if result.created else "Verified"
+            console.print(f"[green]{action} {result.guest} at {result.address}[/]")
+            return 0
         if command == "schema":
             path = write_schema(args.output)
             console.print(f"[green]Wrote schema:[/] {path}")
@@ -547,6 +569,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ApplicationError,
         ConfigurationError,
         DiscoveryError,
+        DnsProvisionError,
         ManifestError,
         MikroTikError,
         ProxmoxBootstrapError,

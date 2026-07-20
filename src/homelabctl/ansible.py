@@ -74,8 +74,15 @@ def generate_inventory(
     config = load_config(config_path)
     root, inventory_path, _ = _paths(config_path)
     outputs = _tofu_outputs(root, tofu_executable)
-    declared = {guest.key: guest for guest in config.proxmox.containers}
-    if set(outputs) != set(declared):
+    tofu_declared = {
+        guest.key: guest for guest in config.proxmox.containers if guest.provisioner == "opentofu"
+    }
+    helper_declared = {
+        guest.key: guest
+        for guest in config.proxmox.containers
+        if guest.provisioner == "community-script"
+    }
+    if set(outputs) != set(tofu_declared):
         raise AnsibleError(
             "OpenTofu state does not match the configured guest set; create and review a new plan"
         )
@@ -101,6 +108,17 @@ def generate_inventory(
             "homelab_timezone": config.site.timezone,
         }
         summary.append(f"{key}: root@{address} ({hostname})")
+    for key, guest in sorted(helper_declared.items()):
+        address = str(guest.address.ip)
+        hosts[key] = {
+            "ansible_host": address,
+            "ansible_user": "root",
+            "ansible_ssh_private_key_file": str(key_path),
+            "homelab_hostname": guest.hostname,
+            "homelab_automation_user": config.automation.ssh_user,
+            "homelab_timezone": config.site.timezone,
+        }
+        summary.append(f"{key}: root@{address} ({guest.hostname}, Community Scripts)")
     known_hosts = root / ".cache" / "ansible" / "known_hosts"
     inventory = {
         "all": {

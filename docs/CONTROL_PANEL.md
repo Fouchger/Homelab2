@@ -30,10 +30,15 @@ Infrastructure contains OpenTofu checks plus guest inventory and baseline operat
 contains control-plane updates; and Diagnostics contains readiness and effective-setting reports.
 Each section presents its actions as sub-actions and shares the same session activity history.
 
-The Router page deliberately has no live **Apply** action. Live configuration remains blocked
+The Router page can preview and provision the replacement DNS LXC through a pinned Proxmox
+Community Scripts revision. Provisioning is a confirmed mutation; it refuses to overwrite an
+occupied VMID. DNS hardening and records are then applied by the curated Technitium application
+step using the DNS site configuration.
+
+The Router page deliberately has no live router **Apply** action. Live configuration remains blocked
 until credential rotation, an encrypted off-router backup, a Safe Mode rehearsal, and a rollback
-rehearsal are complete. Its status, validation, proposal, and readiness actions do not connect to
-or change the router.
+rehearsal are complete. The generated change pack contains a hard-stopped final candidate, an
+inverse rollback script, and the per-VLAN acceptance matrix.
 
 Every operation displays a live progress banner with its current stage and elapsed time. While a
 long-running command is active, the banner updates every second and the portable activity history

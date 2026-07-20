@@ -62,22 +62,16 @@ def test_uptime_kuma_dependencies_run_as_service_account_without_ansible_acl_swi
     ]
 
 
-def test_technitium_adapter_is_pinned_non_root_and_hides_credentials() -> None:
+def test_technitium_adapter_configures_helper_install_and_hides_credentials() -> None:
     path = Path(__file__).parents[1] / "ansible" / "applications" / "technitium.yml"
     raw = path.read_text(encoding="utf-8")
     playbook = yaml.safe_load(raw)
     tasks = playbook[0]["tasks"]
 
-    assert "15.4.0" in raw
-    assert "461ac09d4304ace85093fc17b10a7ee13a8796eae0adb4393866bd4d66ab283f" in raw
-    assert "10.0.10" in raw
-    service = next(
-        task for task in tasks if task["name"] == "Install the hardened Technitium service"
-    )
-    unit = service["ansible.builtin.copy"]["content"]
-    assert "User=dns-server" in unit
-    assert "NoNewPrivileges=true" in unit
-    assert "CapabilityBoundingSet=CAP_NET_BIND_SERVICE" in unit
+    assert "Community Scripts" in raw
+    assert "UseSpecifiedNetworkACL" in raw
+    assert "forwarderProtocol: Tls" in raw
+    assert "policy drop" in raw
     password_tasks = [
         task
         for task in tasks

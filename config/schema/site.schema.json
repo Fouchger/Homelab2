@@ -240,7 +240,7 @@
     },
     "ProxmoxLxcSettings": {
       "additionalProperties": false,
-      "description": "One OpenTofu-owned, unprivileged Debian LXC guest.",
+      "description": "One declared, unprivileged Debian LXC guest with exactly one owner.",
       "properties": {
         "key": {
           "description": "Stable resource key that survives list reordering",
@@ -322,6 +322,28 @@
           "maxItems": 20,
           "title": "Tags",
           "type": "array"
+        },
+        "provisioner": {
+          "default": "opentofu",
+          "enum": [
+            "opentofu",
+            "community-script"
+          ],
+          "title": "Provisioner",
+          "type": "string"
+        },
+        "helper_script": {
+          "anyOf": [
+            {
+              "const": "technitiumdns",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Helper Script"
         }
       },
       "required": [

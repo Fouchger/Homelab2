@@ -247,53 +247,108 @@ def load_mikrotik_desired_state(path: str | Path) -> MikroTikDesiredState:
 
 def _candidate_script(state: MikroTikDesiredState) -> str:
     dns = ",".join(str(server) for server in state.dns.client_servers)
+    transition_dns = [*state.dns.existing_servers, *state.dns.replacement_servers]
     lines = [
-        "# Homelab2 RouterOS candidate - REVIEW ONLY",
-        "# Intentionally blocked: remove nothing and do not import this file.",
+        "# Homelab2 RouterOS final phased candidate - REVIEW ONLY",
+        "# Remove the next line only inside a reviewed Safe Mode window.",
         ':error "NO-APPLY candidate: recovery approval and live-state diff are required"',
         "",
-        "# Candidate non-secret policy follows after the hard stop.",
-        f'/ip dns set servers="{dns}" allow-remote-requests=no',
-        '/interface list add name=HOMELAB_INTERNAL comment="Homelab2 desired state"',
+        "# Phase 1: reconcile ports, services, and a fail-closed policy chain.",
+        ':if ([:len [/interface list find where name=HOMELAB_INTERNAL]]=0) do={/interface list add name=HOMELAB_INTERNAL comment="Homelab2 desired state"}',
     ]
     for network in state.networks:
         lines.append(
-            f"/interface list member add list=HOMELAB_INTERNAL interface={network.interface_name}"
+            f":if ([:len [/interface list member find where list=HOMELAB_INTERNAL and interface={network.interface_name}]]=0) do={{/interface list member add list=HOMELAB_INTERNAL interface={network.interface_name}}}"
         )
     dns_rules = []
-    for server in state.dns.client_servers:
+    for server in transition_dns:
         for protocol in ("udp", "tcp"):
             dns_rules.append(
-                "/ip firewall filter add chain=forward action=accept "
+                "/ip firewall filter add chain=H2-FORWARD action=accept "
                 f"in-interface-list=HOMELAB_INTERNAL dst-address={server} "
                 f'protocol={protocol} dst-port=53 comment="H2 direct DNS {server} {protocol.upper()}"'
             )
     lines.extend(
         [
-            '/ip firewall filter add chain=input action=accept connection-state=established,related comment="H2 input established"',
-            '/ip firewall filter add chain=input action=drop connection-state=invalid comment="H2 input invalid"',
-            '/ip firewall filter add chain=input action=accept protocol=icmp comment="H2 input ICMP"',
-            '/ip firewall filter add chain=input action=accept in-interface-list=HOMELAB_INTERNAL protocol=udp dst-port=67 comment="H2 DHCP server"',
-            '/ip firewall filter add chain=input action=accept in-interface=VLAN20-MGMT comment="H2 management only"',
-            '/ip firewall filter add chain=input action=drop log=yes log-prefix="H2-IN-DROP " comment="H2 final input drop"',
-            '/ip firewall filter add chain=forward action=accept connection-state=established,related comment="H2 forward established"',
-            '/ip firewall filter add chain=forward action=drop connection-state=invalid comment="H2 forward invalid"',
-            '/ip firewall filter add chain=forward action=accept in-interface=VLAN20-MGMT out-interface-list=HOMELAB_INTERNAL comment="H2 management to internal"',
+            "/interface bridge port set [find where interface=ether2] ingress-filtering=yes frame-types=admit-only-vlan-tagged",
+            "/interface bridge port set [find where interface=ether3] ingress-filtering=yes frame-types=admit-only-untagged-and-priority-tagged pvid=20",
+            "/interface bridge port set [find where interface=ether4] ingress-filtering=yes frame-types=admit-only-untagged-and-priority-tagged pvid=40",
+            "/interface bridge port set [find where interface=ether5] ingress-filtering=yes frame-types=admit-only-untagged-and-priority-tagged pvid=40",
+            '/ip firewall filter remove [find where comment~"^H2 "]',
+            '/ip firewall filter add chain=H2-INPUT action=accept connection-state=established,related,untracked comment="H2 input established"',
+            '/ip firewall filter add chain=H2-INPUT action=drop connection-state=invalid comment="H2 input invalid"',
+            '/ip firewall filter add chain=H2-INPUT action=accept protocol=icmp comment="H2 input ICMP"',
+            '/ip firewall filter add chain=H2-INPUT action=accept in-interface-list=HOMELAB_INTERNAL protocol=udp dst-port=67 comment="H2 DHCP server"',
+            '/ip firewall filter add chain=H2-INPUT action=accept in-interface=VLAN20-MGMT protocol=tcp dst-port=22,8291 comment="H2 management only"',
+            '/ip firewall filter add chain=H2-INPUT action=drop log=yes log-prefix="H2-IN-DROP " comment="H2 final input drop"',
+            '/ip firewall filter add chain=H2-FORWARD action=accept connection-state=established,related,untracked comment="H2 forward established"',
+            '/ip firewall filter add chain=H2-FORWARD action=drop connection-state=invalid comment="H2 forward invalid"',
+            '/ip firewall filter add chain=H2-FORWARD action=accept in-interface=VLAN20-MGMT out-interface-list=HOMELAB_INTERNAL comment="H2 management to internal"',
             *dns_rules,
-            '/ip firewall filter add chain=forward action=accept in-interface-list=HOMELAB_INTERNAL out-interface-list=WAN comment="H2 explicit internet"',
-            '/ip firewall filter add chain=forward action=drop log=yes log-prefix="H2-FWD-DROP " comment="H2 final forward drop"',
-            '/ip firewall nat add chain=srcnat action=masquerade out-interface-list=WAN comment="H2 WAN masquerade"',
+            '/ip firewall filter add chain=H2-FORWARD action=accept src-address=192.168.40.0/24 dst-address=192.168.30.0/24 protocol=tcp dst-port=80,443 comment="H2 users to server web"',
+            '/ip firewall filter add chain=H2-FORWARD action=accept in-interface-list=HOMELAB_INTERNAL out-interface-list=WAN comment="H2 explicit internet"',
+            '/ip firewall filter add chain=H2-FORWARD action=drop log=yes log-prefix="H2-FWD-DROP " comment="H2 final forward drop"',
+            '/ip firewall filter add chain=input action=jump jump-target=H2-INPUT place-before=0 comment="H2 managed input jump"',
+            '/ip firewall filter add chain=forward action=jump jump-target=H2-FORWARD place-before=0 comment="H2 managed forward jump"',
             "/ip service set api disabled=yes",
             "/ip service set api-ssl disabled=yes",
             "/ip service set www disabled=yes",
             "/ip service set www-ssl disabled=yes",
             "/ip service set winbox disabled=no address=192.168.20.0/24",
             "/ip service set ssh disabled=no address=192.168.20.0/24",
+            '/interface wifi configuration set [find where name=cfg-users-5] ssid="Homelab"',
+            '/interface wifi configuration set [find where name=cfg-users-24] ssid="Homelab"',
+            '/interface wifi configuration set [find where name=cfg-iot-5] ssid="Homelab-IoT"',
+            '/interface wifi configuration set [find where name=cfg-iot-24] ssid="Homelab-IoT"',
+            '/interface wifi configuration set [find where name=cfg-guest-5] ssid="Homelab-Guest"',
+            '/interface wifi configuration set [find where name=cfg-guest-24] ssid="Homelab-Guest"',
+            "/interface wifi set [find where name=wifi1-mgmt] disabled=yes",
+            "/interface wifi set [find where name=wifi2-mgmt] disabled=yes",
             "",
-            "# Wi-Fi security and WireGuard are intentionally not rendered from plaintext.",
-            "# DHCP pool migration is intentionally deferred until lease admission is complete.",
+            "# Phase 2: run only after dns-core01 passes the complete DNS acceptance matrix.",
+            ':error "PHASE 1 STOP: validate management, routing, old DNS, and dns-core01 before Phase 2"',
+            f'/ip dns set servers="{dns}" allow-remote-requests=no',
         ]
     )
+    for network in state.networks:
+        lines.extend(
+            [
+                f'/ip dhcp-server network set [find where address="{network.cidr}"] dns-server={dns} gateway={network.gateway}',
+                f'/ip pool set [find where name="pool-vlan{network.vlan_id}"] ranges=192.168.{network.vlan_id}.151-192.168.{network.vlan_id}.254',
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "# Wi-Fi credentials remain in existing RouterOS security profiles and are never rendered.",
+            "# WireGuard remains deferred until peers and encrypted keys are approved.",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _rollback_script(state: MikroTikDesiredState) -> str:
+    old_dns = ",".join(str(server) for server in state.dns.existing_servers)
+    lines = [
+        "# Homelab2 inverse rollback for the final router candidate",
+        ':error "NO-APPLY rollback: use only after explicit operator approval"',
+        '/ip firewall filter remove [find where comment~"^H2 "]',
+        f'/ip dns set servers="{old_dns}" allow-remote-requests=yes',
+        "/ip service set www-ssl disabled=no address=192.168.20.0/24",
+        '/interface wifi configuration set [find where name=cfg-users-5] ssid="Mikrotik-Users"',
+        '/interface wifi configuration set [find where name=cfg-users-24] ssid="Mikrotik-Users"',
+        '/interface wifi configuration set [find where name=cfg-iot-5] ssid="Mikrotik-IoT"',
+        '/interface wifi configuration set [find where name=cfg-iot-24] ssid="Mikrotik-IoT"',
+        '/interface wifi configuration set [find where name=cfg-guest-5] ssid="Mikrotik-Guest"',
+        '/interface wifi configuration set [find where name=cfg-guest-24] ssid="Mikrotik-Guest"',
+    ]
+    for network in state.networks:
+        lines.extend(
+            [
+                f'/ip dhcp-server network set [find where address="{network.cidr}"] dns-server={old_dns},{network.gateway} gateway={network.gateway}',
+                f'/ip pool set [find where name="pool-vlan{network.vlan_id}"] ranges=192.168.{network.vlan_id}.100-192.168.{network.vlan_id}.199',
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -366,8 +421,10 @@ def write_mikrotik_proposal(state_path: str | Path, output: str | Path) -> list[
         output_path / "mikrotik-plan.json",
         output_path / "mikrotik-candidate-NO-APPLY.rsc",
         output_path / "mikrotik-validation-matrix.md",
+        output_path / "mikrotik-rollback-NO-APPLY.rsc",
     ]
     paths[0].write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8", newline="\n")
     paths[1].write_text(_candidate_script(state), encoding="utf-8", newline="\n")
     paths[2].write_text(_validation_matrix(state), encoding="utf-8", newline="\n")
+    paths[3].write_text(_rollback_script(state), encoding="utf-8", newline="\n")
     return paths

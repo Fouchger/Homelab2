@@ -94,7 +94,7 @@ class SiteSettings(StrictModel):
 
 
 class ProxmoxLxcSettings(StrictModel):
-    """One OpenTofu-owned, unprivileged Debian LXC guest."""
+    """One declared, unprivileged Debian LXC guest with exactly one owner."""
 
     key: str = Field(description="Stable resource key that survives list reordering")
     vm_id: int = Field(ge=100, le=999_999_999)
@@ -110,6 +110,16 @@ class ProxmoxLxcSettings(StrictModel):
     nesting: bool = False
     protection: bool = False
     tags: list[str] = Field(default_factory=lambda: ["homelab"], max_length=20)
+    provisioner: Literal["opentofu", "community-script"] = "opentofu"
+    helper_script: Literal["technitiumdns"] | None = None
+
+    @model_validator(mode="after")
+    def validate_provisioner(self) -> ProxmoxLxcSettings:
+        if self.provisioner == "community-script" and self.helper_script is None:
+            raise ValueError("community-script containers require helper_script")
+        if self.provisioner == "opentofu" and self.helper_script is not None:
+            raise ValueError("OpenTofu containers cannot declare helper_script")
+        return self
 
     @field_validator("key")
     @classmethod

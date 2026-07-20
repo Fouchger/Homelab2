@@ -204,7 +204,7 @@ def test_desired_infrastructure_summary_is_operator_readable() -> None:
 
     assert summary == (
         "Configured infrastructure target:",
-        '- Proxmox LXC "dns01": VMID 220, 192.168.10.20/24, 2 vCPU, 2048 MiB RAM, 16 GiB disk',
+        '- OpenTofu LXC "dns01": VMID 220, 192.168.10.20/24, 2 vCPU, 2048 MiB RAM, 16 GiB disk',
         "- Cloudflare A record: app.example.com -> 1.1.1.1 (DNS only)",
     )
 

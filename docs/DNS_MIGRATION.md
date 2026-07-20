@@ -16,24 +16,40 @@ Passwords are deliberately not copied from the router or old DNS guests. Router,
 each Wi-Fi network use distinct encrypted SOPS keys. The Technitium adapter receives its password
 only through the child process environment and marks all password API tasks `no_log`.
 
-## Immutable installation inputs
+## Pinned helper installation
 
-| Component | Version | Verification |
+| Component | Pin | Verification |
 |---|---:|---|
-| Technitium DNS | 15.4.0 | SHA-256 `461ac09d4304ace85093fc17b10a7ee13a8796eae0adb4393866bd4d66ab283f` |
-| ASP.NET Core runtime | 10.0.10 | SHA-512 `4719249fcaca744b8edfa5b653366cabdd25f452a7cb9e961b8671ddd2f80eceef4bb8b74e0fad899f93e5c7c8b138890ff0bdb49f2daecb489455d9487a572b` |
+| Community Scripts repository | `1cfddc4c9c28243c455a20fab3ef5d423ffc9d80` | Exact Git revision |
+| `ct/technitiumdns.sh` | same revision | SHA-256 `56e839cf340f5b7a99c4967b8dbbd9231187a9c72c1e5d8408f145c30ddc2b08` |
+| `misc/build.func` | same revision | SHA-256 `40b85ff7dd7705b5464d012c4c79596ae689af695d99a27bfe07303641ad1f8a` |
+| Technitium DNS | 15.4.0 | Verified inside the LXC after helper installation |
 
-The Technitium archive was downloaded from the official portable-release URL and its
-`DnsServerApp.dll` reports version `15.4.0.0`. The service runs as the unprivileged `dns-server`
-account with only `CAP_NET_BIND_SERVICE`. The default Technitium password is replaced immediately
-through the documented local API with `credentials.technitium-admin.value`.
+The helper entry normally downloads supporting files from its moving `main` branch. Homelab2
+downloads the pinned entry and build helper, verifies both hashes, and rewrites every transitive
+Community Scripts URL to the same immutable revision before execution. It refuses an occupied VMID
+whose hostname, address, or VLAN differs. The default Technitium password is then replaced
+immediately through the documented local API with `credentials.technitium-admin.value`.
+
+The configuration adapter restricts recursion to the seven internal VLANs, uses DNS-over-TLS
+forwarders, enables DNSSEC validation and QNAME minimization, creates forward and reverse
+`home.arpa` records, and installs a host firewall. DHCP remains exclusively on RouterOS.
+
+Preview and provision with the active DNS site configuration:
+
+```text
+task dns:provision:plan CONFIG=config/examples/dns-core-site.yaml
+task dns:provision CONFIG=config/examples/dns-core-site.yaml
+task applications:apply CONFIG=config/examples/dns-core-site.yaml
+```
 
 ## Safe order
 
 1. Capture DHCP leases and every static address. Move the managed `monitoring` guest from `.201`
    to an unused address at or below `.150` before changing a pool.
-2. Provision `dns-core01` while DHCP and all clients still use `.30.2` and `.30.3`.
-3. Install the pinned DNS adapter and change the default administrator password immediately.
+2. Provision `dns-core01` through the pinned Community Scripts workflow while DHCP and all clients
+   still use `.30.2` and `.30.3`.
+3. Apply the DNS configuration adapter and change the default administrator password immediately.
 4. Export both old Technitium configurations. Import required zones, forwarders, block lists, and
    records into `.30.53`; do not import unknown users or stale API tokens blindly.
 5. Validate recursion, DNSSEC, internal `home.arpa`, UDP/TCP 53, caching, time sync, reboot, and

@@ -1,20 +1,18 @@
 ---
-- name: Install the curated Technitium DNS replacement
+- name: Configure the Community Scripts Technitium DNS replacement
   hosts: all
   gather_facts: true
   vars:
-    technitium_version: "15.4.0"
-    technitium_checksum: "sha256:461ac09d4304ace85093fc17b10a7ee13a8796eae0adb4393866bd4d66ab283f"
-    dotnet_version: "10.0.10"
-    dotnet_checksum: "sha512:4719249fcaca744b8edfa5b653366cabdd25f452a7cb9e961b8671ddd2f80eceef4bb8b74e0fad899f93e5c7c8b138890ff0bdb49f2daecb489455d9487a572b"
     technitium_admin_password: "{{ lookup('ansible.builtin.env', 'HOMELAB_TECHNITIUM_ADMIN_PASSWORD') }}"
   tasks:
-    - name: Require the approved DNS platform
+    - name: Require the approved helper-installed DNS platform
       ansible.builtin.assert:
         that:
           - ansible_facts.os_family == "Debian"
-          - ansible_facts.architecture == "x86_64"
           - technitium_web_port == 5380
+          - technitium_domain | length > 3
+          - technitium_recursion_acl | length > 0
+          - technitium_records | length > 0
 
     - name: Require the encrypted DNS administrator credential
       ansible.builtin.assert:
@@ -22,163 +20,82 @@
         fail_msg: The encrypted technitium-admin credential is required
       no_log: true
 
-    - name: Install runtime prerequisites
+    - name: Verify the Community Scripts service exists
+      ansible.builtin.stat:
+        path: /etc/systemd/system/technitium.service
+      register: technitium_service
+
+    - name: Refuse to replace a non-helper installation
+      ansible.builtin.assert:
+        that: technitium_service.stat.isreg | default(false)
+        fail_msg: Provision dns-core01 with the pinned Community Scripts workflow first
+
+    - name: Ensure DNS validation and firewall packages are installed
       ansible.builtin.apt:
-        name: [ca-certificates, curl, dnsutils, libicu74, tar]
+        name: [dnsutils, nftables]
         state: present
         update_cache: true
         cache_valid_time: 3600
 
-    - name: Create the non-root DNS service account
-      ansible.builtin.user:
-        name: dns-server
-        system: true
-        home: /var/lib/technitium
-        create_home: true
-        shell: /usr/sbin/nologin
-
-    - name: Create immutable runtime and application directories
-      ansible.builtin.file:
-        path: "{{ item.path }}"
-        state: directory
-        owner: "{{ item.owner }}"
-        group: "{{ item.group }}"
-        mode: "{{ item.mode }}"
-      loop:
-        - {path: /opt/dotnet/releases, owner: root, group: root, mode: "0755"}
-        - {path: /opt/technitium/releases, owner: root, group: root, mode: "0755"}
-        - {path: /etc/dns, owner: dns-server, group: dns-server, mode: "0700"}
-        - {path: /var/log/technitium/dns, owner: dns-server, group: dns-server, mode: "0700"}
-
-    - name: Download the pinned ASP.NET Core runtime
-      ansible.builtin.get_url:
-        url: "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/{{ dotnet_version }}/aspnetcore-runtime-{{ dotnet_version }}-linux-x64.tar.gz"
-        dest: "/var/cache/aspnetcore-runtime-{{ dotnet_version }}.tar.gz"
-        checksum: "{{ dotnet_checksum }}"
-        mode: "0644"
-      when: not ansible_check_mode
-
-    - name: Create the ASP.NET Core release directory
-      ansible.builtin.file:
-        path: "/opt/dotnet/releases/{{ dotnet_version }}"
-        state: directory
-        owner: root
-        group: root
-        mode: "0755"
-      when: not ansible_check_mode
-
-    - name: Extract the approved ASP.NET Core runtime
-      ansible.builtin.unarchive:
-        src: "/var/cache/aspnetcore-runtime-{{ dotnet_version }}.tar.gz"
-        dest: "/opt/dotnet/releases/{{ dotnet_version }}"
-        remote_src: true
-        creates: "/opt/dotnet/releases/{{ dotnet_version }}/dotnet"
-      when: not ansible_check_mode
-
-    - name: Download the pinned Technitium archive
-      ansible.builtin.get_url:
-        url: https://download.technitium.com/dns/DnsServerPortable.tar.gz
-        dest: "/var/cache/technitium-{{ technitium_version }}.tar.gz"
-        checksum: "{{ technitium_checksum }}"
-        mode: "0644"
-      when: not ansible_check_mode
-
-    - name: Create the Technitium release directory
-      ansible.builtin.file:
-        path: "/opt/technitium/releases/{{ technitium_version }}"
-        state: directory
-        owner: root
-        group: root
-        mode: "0755"
-      when: not ansible_check_mode
-
-    - name: Extract the approved Technitium release
-      ansible.builtin.unarchive:
-        src: "/var/cache/technitium-{{ technitium_version }}.tar.gz"
-        dest: "/opt/technitium/releases/{{ technitium_version }}"
-        remote_src: true
-        creates: "/opt/technitium/releases/{{ technitium_version }}/DnsServerApp.dll"
-      when: not ansible_check_mode
-
-    - name: Select the approved Technitium release
-      ansible.builtin.file:
-        src: "/opt/technitium/releases/{{ technitium_version }}"
-        dest: /opt/technitium/current
-        state: link
-        force: true
-      notify: Restart Technitium DNS
-      when: not ansible_check_mode
-
-    - name: Install the hardened Technitium service
+    - name: Install the DNS host firewall
       ansible.builtin.copy:
-        dest: /etc/systemd/system/technitium-dns.service
+        dest: /etc/nftables.conf
         owner: root
         group: root
         mode: "0644"
         content: |
-          [Unit]
-          Description=Technitium DNS Server
-          After=network-online.target
-          Wants=network-online.target
-
-          [Service]
-          Type=simple
-          User=dns-server
-          Group=dns-server
-          WorkingDirectory=/opt/technitium/current
-          ExecStart=/opt/dotnet/releases/{{ dotnet_version }}/dotnet /opt/technitium/current/DnsServerApp.dll /etc/dns
-          Restart=always
-          RestartSec=10
-          ReadWritePaths=/etc/dns /var/log/technitium/dns
-          LockPersonality=true
-          NoNewPrivileges=true
-          PrivateDevices=true
-          PrivateTmp=true
-          ProtectClock=true
-          ProtectControlGroups=true
-          ProtectHome=true
-          ProtectHostname=true
-          ProtectKernelLogs=true
-          ProtectKernelModules=true
-          ProtectKernelTunables=true
-          ProtectSystem=strict
-          RemoveIPC=true
-          RestrictRealtime=true
-          RestrictSUIDSGID=true
-          AmbientCapabilities=CAP_NET_BIND_SERVICE
-          CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-          UMask=0077
-
-          [Install]
-          WantedBy=multi-user.target
-      notify: Restart Technitium DNS
+          flush ruleset
+          table inet homelab_dns {
+            chain input {
+              type filter hook input priority 0; policy drop;
+              iifname "lo" accept
+              ct state established,related accept
+              ip protocol icmp accept
+              ip saddr 192.168.20.0/24 tcp dport { 22, 5380 } accept
+              ip saddr { {{ technitium_recursion_acl | join(', ') }} } udp dport 53 accept
+              ip saddr { {{ technitium_recursion_acl | join(', ') }} } tcp dport 53 accept
+            }
+            chain forward { type filter hook forward priority 0; policy drop; }
+            chain output { type filter hook output priority 0; policy accept; }
+          }
+      register: nftables_config
       when: not ansible_check_mode
 
-    - name: Enable and start Technitium DNS
+    - name: Validate the DNS host firewall
+      ansible.builtin.command: nft --check --file /etc/nftables.conf
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Enable the DNS host firewall
       ansible.builtin.systemd_service:
-        name: technitium-dns
+        name: nftables
         enabled: true
-        state: started
-        daemon_reload: true
-      when: not ansible_check_mode
-
-    - name: Apply service changes before API initialization
-      ansible.builtin.meta: flush_handlers
-      when: not ansible_check_mode
+        state: restarted
+      when:
+        - not ansible_check_mode
+        - nftables_config.changed
 
     - name: Wait for the local Technitium API
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/status"
+        status_code: 200
+      register: api_status
+      retries: 20
+      delay: 3
+      until: api_status.json.status | default('error') == 'ok'
+      when: not ansible_check_mode
+
+    - name: Test the desired administrator credential
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ technitium_web_port }}/api/user/login"
         method: POST
         body_format: form-urlencoded
         body: {user: admin, pass: "{{ technitium_admin_password }}", includeInfo: "true"}
-        status_code: [200, 401, 403]
+        status_code: 200
       register: desired_login
-      retries: 12
-      delay: 5
-      until: desired_login.status in [200, 401, 403]
       no_log: true
       when: not ansible_check_mode
+      failed_when: false
 
     - name: Authenticate with the one-time default credential
       ansible.builtin.uri:
@@ -197,8 +114,7 @@
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ technitium_web_port }}/api/user/changePassword"
         method: POST
-        headers:
-          Authorization: "Bearer {{ default_login.json.token }}"
+        headers: {Authorization: "Bearer {{ default_login.json.token }}"}
         body_format: form-urlencoded
         body: {pass: admin, newPass: "{{ technitium_admin_password }}"}
         status_code: 200
@@ -207,31 +123,93 @@
         - not ansible_check_mode
         - desired_login.json.status | default('error') != 'ok'
 
-    - name: Verify the encrypted administrator credential
+    - name: Authenticate for desired-state configuration
       ansible.builtin.uri:
         url: "http://127.0.0.1:{{ technitium_web_port }}/api/user/login"
         method: POST
         body_format: form-urlencoded
         body: {user: admin, pass: "{{ technitium_admin_password }}", includeInfo: "true"}
         status_code: 200
-      register: verified_login
-      failed_when: verified_login.json.status | default('error') != 'ok'
+      register: login
+      failed_when: login.json.status | default('error') != 'ok'
       no_log: true
       when: not ansible_check_mode
 
-    - name: Verify recursive DNS over UDP
-      ansible.builtin.command: dig +time=5 +tries=1 @127.0.0.1 example.com A
+    - name: Configure secure recursive DNS policy
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/settings/set"
+        method: POST
+        headers: {Authorization: "Bearer {{ login.json.token }}"}
+        body_format: form-urlencoded
+        body:
+          dnsServerDomain: "dns-core01.{{ technitium_domain }}"
+          dnsServerLocalEndPoints: "0.0.0.0:53"
+          recursion: UseSpecifiedNetworkACL
+          recursionNetworkACL: "{{ technitium_recursion_acl | join(',') }}"
+          dnssecValidation: "true"
+          qnameMinimization: "true"
+          locallyServedDnsZones: "true"
+          serveStale: "true"
+          enableBlocking: "false"
+          forwarders: "cloudflare-dns.com (1.1.1.1),cloudflare-dns.com (1.0.0.1)"
+          forwarderProtocol: Tls
+          concurrentForwarding: "true"
+          enableLogging: "true"
+          logQueries: "false"
+          maxLogFileDays: "30"
+        status_code: 200
+      no_log: true
+      when: not ansible_check_mode
+
+    - name: List authoritative zones
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/zones/list"
+        headers: {Authorization: "Bearer {{ login.json.token }}"}
+        status_code: 200
+      register: zones
+      no_log: true
+      when: not ansible_check_mode
+
+    - name: Create the internal forward zone
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/zones/create"
+        method: POST
+        headers: {Authorization: "Bearer {{ login.json.token }}"}
+        body_format: form-urlencoded
+        body: {zone: "{{ technitium_domain }}", type: Primary, useSoaSerialDateScheme: "true"}
+        status_code: 200
+      no_log: true
+      when:
+        - not ansible_check_mode
+        - technitium_domain not in (zones.json.response.zones | map(attribute='name') | list)
+
+    - name: Reconcile internal A and PTR records
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ technitium_web_port }}/api/zones/records/add"
+        method: POST
+        headers: {Authorization: "Bearer {{ login.json.token }}"}
+        body_format: form-urlencoded
+        body:
+          domain: "{{ item.name }}.{{ technitium_domain }}"
+          zone: "{{ technitium_domain }}"
+          type: A
+          ttl: "300"
+          overwrite: "true"
+          ipAddress: "{{ item.address }}"
+          ptr: "true"
+          createPtrZone: "true"
+          comments: Managed by Homelab2
+        status_code: 200
+      loop: "{{ technitium_records }}"
+      no_log: true
+      when: not ansible_check_mode
+
+    - name: Verify internal DNS over UDP
+      ansible.builtin.command: "dig +time=5 +tries=1 @127.0.0.1 dns-core01.{{ technitium_domain }} A"
       changed_when: false
       when: not ansible_check_mode
 
     - name: Verify recursive DNS over TCP
-      ansible.builtin.command: dig +tcp +time=5 +tries=1 @127.0.0.1 example.com A
+      ansible.builtin.command: dig +tcp +time=5 +tries=1 @127.0.0.1 cloudflare.com A
       changed_when: false
       when: not ansible_check_mode
-
-  handlers:
-    - name: Restart Technitium DNS
-      ansible.builtin.systemd_service:
-        name: technitium-dns
-        state: restarted
-        daemon_reload: true

@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- A guarded Router menu with complete MikroTik validation, a two-stage hard-stopped RouterOS
+  candidate, inverse rollback, and per-VLAN acceptance output.
+- A pinned Proxmox Community Scripts workflow for `dns-core01` that verifies helper checksums,
+  rewrites transitive downloads to one immutable revision, and refuses occupied-resource drift.
+- Technitium configuration for internal-only recursion, DNS-over-TLS forwarding, DNSSEC, QNAME
+  minimization, `home.arpa` A/PTR records, encrypted credential rotation, and a host firewall.
 - Complete whole-homelab future-state scope covering MikroTik, Proxmox, Technitium, OpenMediaVault,
   a Deployrr-compatible Traefik/DockFlare edge stack, one managed Plex service, Immich, backup,
   exposure, capacity, and recovery boundaries.

@@ -137,6 +137,16 @@ tasks:
     cmds:
       - uv run --locked --no-dev homelabctl applications plan --config "{{.CONFIG}}"
 
+  dns:provision:plan:
+    desc: Preview the pinned Proxmox helper deployment for replacement DNS
+    cmds:
+      - uv run --locked --no-dev homelabctl dns provision --config "{{.CONFIG}}"
+
+  dns:provision:
+    desc: Create or verify dns-core01 through the pinned Proxmox helper
+    cmds:
+      - uv run --locked --no-dev homelabctl dns provision --config "{{.CONFIG}}" --apply
+
   applications:check:
     desc: Preview curated application changes without applying them
     cmds:

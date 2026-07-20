@@ -5,6 +5,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 
 import pytest
+import yaml
 
 from homelabctl.applications import (
     COMMUNITY_SCRIPTS_REVISION,
@@ -16,6 +17,7 @@ from homelabctl.applications import (
 )
 from homelabctl.configuration import save_config
 from homelabctl.models import HomelabConfig
+from homelabctl.secrets import ProviderSecret, SecretBundle, ServiceSecret
 
 
 def _config(tmp_path: Path) -> Path:
@@ -109,3 +111,52 @@ def test_empty_catalog_refuses_execution(tmp_path: Path) -> None:
     path = save_config(HomelabConfig(), tmp_path / "site.yaml")
     with pytest.raises(ApplicationError, match="exactly one"):
         run_applications(path, check=True)
+
+
+def test_helper_owned_application_uses_provisioned_root_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = yaml.safe_load(
+        (Path(__file__).parents[1] / "config" / "examples" / "dns-core-site.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    data["automation"]["ssh_public_key_files"] = []
+    data["automation"]["ssh_public_keys"] = ["ssh-ed25519 AAAAC3NzaCTest automation"]
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='test'\n", encoding="utf-8")
+    config_path = save_config(HomelabConfig.model_validate(data), tmp_path / "config" / "site.yaml")
+    (tmp_path / ".cache" / "ansible").mkdir(parents=True)
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(
+        json.dumps({"all": {"hosts": {"dns-core01": {"ansible_host": "192.168.30.53"}}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "homelabctl.applications.generate_inventory", lambda path: (inventory_path, ())
+    )
+    monkeypatch.setattr("homelabctl.applications.shutil.which", lambda name: "ansible-playbook")
+    monkeypatch.setattr(
+        "homelabctl.applications.load_secrets",
+        lambda **kwargs: SecretBundle(
+            proxmox=ProviderSecret(api_token="test-proxmox-token"),
+            credentials={"technitium-admin": ServiceSecret(value="unique-dns-password")},
+        ),
+    )
+    monkeypatch.setattr(
+        "homelabctl.applications.load_mikrotik_desired_state",
+        lambda path: type(
+            "Router", (), {"networks": [type("Network", (), {"cidr": "192.168.30.0/24"})()]}
+        )(),
+    )
+    monkeypatch.setattr(
+        "homelabctl.applications.subprocess.run",
+        lambda command, **kwargs: CompletedProcess(command, 0, "dns-core01 : ok=1 changed=0\n", ""),
+    )
+
+    run_applications(config_path, check=True)
+
+    filtered = json.loads(
+        (tmp_path / ".cache" / "ansible" / "applications.json").read_text(encoding="utf-8")
+    )
+    assert filtered["all"]["hosts"]["dns-core01"]["ansible_user"] == "root"
+    assert filtered["all"]["hosts"]["dns-core01"]["ansible_become"] is False

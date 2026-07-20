@@ -33,6 +33,7 @@ from homelabctl.configuration import (
     resolve_config_path,
     save_config,
 )
+from homelabctl.dns import DnsProvisionError, dns_provision_plan, provision_dns_lxc
 from homelabctl.doctor import checks_succeeded, run_checks
 from homelabctl.mikrotik import (
     MikroTikError,
@@ -238,6 +239,33 @@ def check_router_change_readiness(path: Path) -> OperationResult:
         (
             "All recovery gates are complete",
             "A reviewed exact live diff and inverse rollback are still required before Apply",
+        ),
+    )
+
+
+def preview_dns_helper_deployment(path: Path) -> OperationResult:
+    try:
+        plan = dns_provision_plan(path)
+    except (DnsProvisionError, ConfigurationError) as exc:
+        return OperationResult(
+            False, "Replacement DNS deployment plan", tuple(str(exc).splitlines())
+        )
+    return OperationResult(True, "Replacement DNS deployment plan", plan.lines)
+
+
+def apply_dns_helper_deployment(path: Path) -> OperationResult:
+    try:
+        result = provision_dns_lxc(path)
+    except (DnsProvisionError, ConfigurationError) as exc:
+        return OperationResult(False, "Replacement DNS LXC", tuple(str(exc).splitlines()))
+    action = "Created" if result.created else "Verified existing"
+    return OperationResult(
+        True,
+        "Replacement DNS LXC",
+        (
+            f"{action} {result.guest} at {result.address}",
+            "Technitium service is active and matches the pinned version",
+            f"Diagnostic log: {result.diagnostic_log}",
         ),
     )
 
@@ -784,12 +812,30 @@ OPERATIONS: tuple[Operation, ...] = (
         sequence=20,
     ),
     Operation(
+        "dns-helper-plan",
+        "Preview replacement DNS LXC",
+        "Review the exact pinned Proxmox Community Scripts deployment without changing Proxmox.",
+        preview_dns_helper_deployment,
+        section="router",
+        sequence=30,
+    ),
+    Operation(
+        "dns-helper-apply",
+        "Provision replacement DNS LXC",
+        "Create or verify dns-core01 with the pinned helper before DNS configuration and cutover.",
+        apply_dns_helper_deployment,
+        section="router",
+        destructive=True,
+        plan=preview_dns_helper_deployment,
+        sequence=40,
+    ),
+    Operation(
         "router-render",
         "Generate review proposal",
         "Write a secret-free, hard-stopped RouterOS proposal and per-VLAN test matrix.",
         render_router_proposal,
         section="router",
-        sequence=30,
+        sequence=50,
     ),
     Operation(
         "router-readiness",
@@ -797,7 +843,7 @@ OPERATIONS: tuple[Operation, ...] = (
         "Explain which recovery and rollback requirements still block router changes.",
         check_router_change_readiness,
         section="router",
-        sequence=40,
+        sequence=60,
     ),
     Operation(
         "automation-ssh",

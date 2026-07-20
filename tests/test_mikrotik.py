@@ -86,9 +86,14 @@ def test_proposal_is_secret_free_hard_stopped_and_complete(tmp_path: Path) -> No
     assert 'servers="192.168.30.53" allow-remote-requests=no' in candidate
     assert "interface=VLAN30-SERVERS" in candidate
     assert "H2 direct DNS 192.168.30.53 TCP" in candidate
+    assert "H2 direct DNS 192.168.30.2 TCP" in candidate
+    assert "PHASE 1 STOP" in candidate
     assert "final forward drop" in candidate
     assert "sops://" not in candidate
     assert "password" not in candidate.lower()
+    rollback = paths[3].read_text(encoding="utf-8")
+    assert rollback.splitlines()[1].startswith(":error")
+    assert 'servers="192.168.30.2,192.168.30.3"' in rollback
     assert all(f"| {vlan} |" in matrix for vlan in (20, 30, 40, 50, 60, 70, 90))
 
 

@@ -12,6 +12,8 @@ from pathlib import Path
 from homelabctl.ansible import AnsibleError, _run_ansible_with_live_output, generate_inventory
 from homelabctl.configuration import find_project_root, load_config
 from homelabctl.guard import OperationLockedError, mutation_lock
+from homelabctl.mikrotik import load_mikrotik_desired_state
+from homelabctl.models import HomelabConfig
 from homelabctl.progress import is_enabled as live_progress_enabled
 from homelabctl.secrets import load_secrets
 
@@ -82,8 +84,15 @@ def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
         raise ApplicationError(
             f"Application guest is absent from runtime inventory: {application.guest}"
         )
-    hosts[application.guest]["ansible_user"] = config.automation.ssh_user
-    hosts[application.guest]["ansible_become"] = config.automation.become
+    guest_config = next(
+        guest for guest in config.proxmox.containers if guest.key == application.guest
+    )
+    if guest_config.provisioner == "community-script":
+        hosts[application.guest]["ansible_user"] = "root"
+        hosts[application.guest]["ansible_become"] = False
+    else:
+        hosts[application.guest]["ansible_user"] = config.automation.ssh_user
+        hosts[application.guest]["ansible_become"] = config.automation.become
     inventory["all"]["hosts"] = {application.guest: hosts[application.guest]}
     app_inventory = root / ".cache" / "ansible" / "applications.json"
     app_inventory.write_text(json.dumps(inventory, indent=2) + "\n", encoding="utf-8")
@@ -97,7 +106,7 @@ def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
     extra_vars = (
         {"uptime_kuma_port": application.port}
         if application.type == "uptime-kuma"
-        else {"technitium_web_port": application.port}
+        else _technitium_extra_vars(config_path, config, application.port)
     )
     environment_updates: dict[str, str] = {}
     if application.type == "technitium":
@@ -174,3 +183,24 @@ def run_applications(config_path: Path, *, check: bool) -> ApplicationResult:
     return ApplicationResult(
         key, application.guest, diagnostic, recap or application_plan(config_path)
     )
+
+
+def _technitium_extra_vars(
+    config_path: Path, config: HomelabConfig, port: int
+) -> dict[str, object]:
+    root = find_project_root(config_path.parent)
+    router = load_mikrotik_desired_state(root / "config" / "examples" / "mikrotik-desired.yaml")
+    records = [
+        {"name": "router", "address": "192.168.20.1"},
+        {"name": config.proxmox.node, "address": str(config.proxmox.api_url.host)},
+        *(
+            {"name": guest.hostname, "address": str(guest.address.ip)}
+            for guest in config.proxmox.containers
+        ),
+    ]
+    return {
+        "technitium_web_port": port,
+        "technitium_domain": config.site.domain,
+        "technitium_recursion_acl": [str(network.cidr) for network in router.networks],
+        "technitium_records": records,
+    }

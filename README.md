@@ -144,6 +144,8 @@ task secrets:check     Decrypt and validate without displaying values
 task proxmox:bootstrap:plan  Preview API identity changes
 task proxmox:bootstrap       Create/reconcile the API user, role, ACL, and token
 task infrastructure:ssh-key Create and configure the guest automation SSH key
+task dns:provision:plan      Preview the pinned replacement DNS helper deployment
+task dns:provision           Create or verify dns-core01 through the pinned helper
 task tofu:check              Validate typed inputs and create a non-destructive plan
 task tofu:apply              Apply only the existing reviewed plan with runtime credentials
 task ansible:inventory       Derive ignored runtime inventory from OpenTofu outputs
