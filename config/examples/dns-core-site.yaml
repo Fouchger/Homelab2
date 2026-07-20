@@ -14,6 +14,20 @@ proxmox:
   token_id: homelab@pve!control-plane
   verify_tls: false
   containers:
+    - key: monitoring
+      vm_id: 201
+      hostname: monitoring
+      template_file_id: local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst
+      address: 192.168.30.201/24
+      cores: 2
+      memory_mb: 2048
+      swap_mb: 512
+      disk_gb: 12
+      started: true
+      start_on_boot: true
+      nesting: true
+      protection: false
+      tags: [monitoring]
     - key: dns-core01
       vm_id: 220
       hostname: dns-core01

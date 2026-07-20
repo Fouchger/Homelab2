@@ -15,8 +15,10 @@ def test_dns_core_site_example_is_valid_and_secret_free() -> None:
     raw = source.read_text(encoding="utf-8")
     config = HomelabConfig.model_validate(yaml.safe_load(raw))
 
-    assert config.proxmox.containers[0].vm_id == 220
-    assert str(config.proxmox.containers[0].address) == "192.168.30.53/24"
+    dns = next(item for item in config.proxmox.containers if item.key == "dns-core01")
+    assert dns.vm_id == 220
+    assert str(dns.address) == "192.168.30.53/24"
+    assert {item.vm_id for item in config.proxmox.containers} == {201, 220}
     assert config.applications["technitium"].credential == "technitium-admin"
     assert "password" not in raw.lower()
 

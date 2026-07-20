@@ -50,3 +50,7 @@ through the documented local API with `credentials.technitium-admin.value`.
 The replacement is initially a single DNS server, as requested. Retiring both old servers removes
 DNS redundancy; a later `dns-core02` at `.30.54` is recommended before DNS becomes a hard dependency
 for additional production services.
+
+The transitional `dns-core-site.yaml` deliberately keeps the existing OpenTofu-owned monitoring
+guest in its container list. Removing it from the input would create an unsafe destroy proposal.
+Its `.201` address remains temporarily until a separate reviewed readdressing step.
