@@ -5,6 +5,7 @@
 
 | Release | Channel | Published | Source | Notes |
 | --- | --- | --- | --- | --- |
+| `v0.1.1-test.11` | 🧪 Test | 2026-08-23 | `3695306c374b` | [Release notes](releases/v0.1.1-test.11.md) |
 | `v0.1.1-test.10` | 🧪 Test | 2026-08-23 | `67d5d3c52d1f` | [Release notes](releases/v0.1.1-test.10.md) |
 | `v0.1.1-test.9` | 🧪 Test | 2026-08-23 | `63c3abdb66f6` | [Release notes](releases/v0.1.1-test.9.md) |
 | `v0.1.1-test.8` | 🧪 Test | 2026-08-23 | `d7984bfc6906` | [Release notes](releases/v0.1.1-test.8.md) |
