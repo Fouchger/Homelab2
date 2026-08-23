@@ -2,9 +2,18 @@
   "title": "Controlplane Release Index",
   "schema_version": 1,
   "channel": "test",
-  "latest": "v0.1.1-test.12",
-  "generated_at": "2026-08-23T05:36:21Z",
+  "latest": "v0.1.1-test.13",
+  "generated_at": "2026-08-23T07:47:27Z",
   "releases": [
+    {
+      "version": "v0.1.1-test.13",
+      "channel": "test",
+      "published_at": "2026-08-23T07:47:27Z",
+      "source_sha": "b080a0e41db08c37eea83452044467e4d8df7f7d",
+      "notes_file": "releases/v0.1.1-test.13.md",
+      "proxmox_asset": "controlplane-proxmox-v0.1.1-test.13.tar.gz",
+      "wsl_asset": "controlplane-wsl-v0.1.1-test.13.zip"
+    },
     {
       "version": "v0.1.1-test.12",
       "channel": "test",
