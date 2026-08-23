@@ -4,14 +4,14 @@ Provision a production Ubuntu controlplane on Proxmox VE and a closely matched
 Ubuntu WSL 2 environment for development and testing. Every installation is
 pinned to a published release and verified with SHA-256 before execution.
 
-![Release](https://img.shields.io/badge/release-v0.1.1--test.8-blue?style=for-the-badge)
+![Release](https://img.shields.io/badge/release-v0.1.1--test.9-blue?style=for-the-badge)
 ![Channel](https://img.shields.io/badge/channel-test-orange?style=for-the-badge)
 ![Released](https://img.shields.io/badge/released-2026--08--23-informational?style=for-the-badge)
 ![Checksums](https://img.shields.io/badge/checksums-SHA--256-blue?style=for-the-badge)
 
 | Current release | Published | Channel |
 | --- | --- | --- |
-| `v0.1.1-test.8` | `2026-08-23` | `test` |
+| `v0.1.1-test.9` | `2026-08-23` | `test` |
 
 > [!WARNING]
 > Test releases require validation before production use.
@@ -29,7 +29,7 @@ allows.
 
 ## Install the current release
 
-The following commands are already pinned to `v0.1.1-test.8`. Copy the command
+The following commands are already pinned to `v0.1.1-test.9`. Copy the command
 for your platform without replacing any values.
 
 ### Proxmox VE
@@ -37,7 +37,7 @@ for your platform without replacing any values.
 Run in the Proxmox VE host shell as `root`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Fouchger/Homelab/test/install-proxmox.sh | bash -s -- --release v0.1.1-test.8
+curl -fsSL https://raw.githubusercontent.com/Fouchger/Homelab/test/install-proxmox.sh | bash -s -- --release v0.1.1-test.9
 ```
 
 ### Windows WSL
@@ -46,7 +46,7 @@ Run in Windows PowerShell. The installer requests elevation only when Windows
 requires it:
 
 ```powershell
-& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Fouchger/Homelab/test/install-wsl.ps1'))) -Release 'v0.1.1-test.8'
+& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Fouchger/Homelab/test/install-wsl.ps1'))) -Release 'v0.1.1-test.9'
 ```
 
 ## Security and verification
@@ -63,7 +63,7 @@ Windows administrator must change the managed policy or provide signed scripts.
 ## Releases and support information
 
 - [Release history](RELEASES.md) — newest version first
-- [Current release notes](releases/v0.1.1-test.8.md)
+- [Current release notes](releases/v0.1.1-test.9.md)
 - [Machine-readable release index](releases/index.json)
 - [Third-party notices](NOTICE.md)
 
