@@ -3,6 +3,22 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "0.1.1-test.32",
+      "channel": "test",
+      "source_sha": "bc64214568ba75f970aaadecd260df305b1f87d5",
+      "published_at": "2026-09-03T08:38:54Z",
+      "checksum": "sha256:5ed3da02c138922cc7ce1b576a0cf4b62bddc4815c026e811fc5ffe3dbeb54ce",
+      "url": "https://github.com/Fouchger/Homelab/releases/download/v0.1.1-test.32/controlplane-0.1.1-test.32.tar.gz",
+      "notes_url": "https://github.com/Fouchger/Homelab/releases/tag/v0.1.1-test.32",
+      "summary": "This release ships the full Controlplane platform rewrite \u2014 a Django-based control plane replacing the prior architecture, single-archive Proxmox/WSL packaging, and full ansible Molecule coverage \u2014 along with fixes to the installer scripts for a crash-on-update bug, a missing confirmation prompt before touching an existing install, and a broken color-output patch.",
+      "acceptance": {
+        "status": "pending",
+        "tested_at": null,
+        "tested_by": null,
+        "notes": null
+      }
+    },
+    {
       "version": "0.1.1-test.31",
       "channel": "test",
       "source_sha": "756d768af9df508c3e2b4bb923f4067a9c7323f8",
