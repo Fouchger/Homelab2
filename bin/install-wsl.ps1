@@ -37,6 +37,11 @@
 
 .PARAMETER Force
     Reinstall over an existing installation marker.
+
+.PARAMETER Yes
+    Skip the confirmation prompt before enabling WSL / elevating to an
+    administrator process. For scripted/CI runs; interactively, always
+    confirm first instead of passing this by habit.
 #>
 
 [CmdletBinding()]
@@ -47,7 +52,9 @@ param(
 
     [string]$Distro = 'Ubuntu-24.04',
 
-    [switch]$Force
+    [switch]$Force,
+
+    [switch]$Yes
 )
 
 Set-StrictMode -Version Latest
@@ -67,13 +74,37 @@ $MarkerFile = Join-Path $env:LOCALAPPDATA 'Controlplane\RELEASE'
 
 function Write-Step {
     param([string]$Message)
-    Write-Host "==> $Message" -ForegroundColor Cyan
+    Write-Host "🚀 $Message" -ForegroundColor Cyan
+}
+
+function Write-Ok {
+    param([string]$Message)
+    Write-Host "✔ $Message" -ForegroundColor Green
 }
 
 function Fail {
     param([string]$Message)
-    Write-Host "error: $Message" -ForegroundColor Red
+    Write-Host "✖ $Message" -ForegroundColor Red
     exit 1
+}
+
+function Confirm-Step {
+    # Prompts before a consequential action (enabling the WSL Windows
+    # feature, elevating to an administrator process) -- mirrors the
+    # pre-rewrite installer's "Continue with the temporary bypass? [y/N]"
+    # prompt, and bin/install-proxmox.sh's confirm() for the same reason:
+    # neither proceeds silently. -Yes skips it for scripted/CI runs.
+    param([string]$Message)
+    if ($Yes) {
+        Write-Host "❓ $Message (auto-confirmed: -Yes)" -ForegroundColor Yellow
+        return
+    }
+    Write-Host ''
+    Write-Host "❓ $Message" -ForegroundColor Yellow
+    $response = Read-Host '   Continue? [y/N]'
+    if ($response -notmatch '^[Yy]') {
+        Fail 'Aborted -- nothing was changed.'
+    }
 }
 
 # -----------------------------------------------------------------------
@@ -106,11 +137,16 @@ function Test-WslAvailable {
 
 if (-not (Test-WslAvailable)) {
     if (-not (Test-IsAdministrator)) {
-        Write-Step "WSL isn't set up yet — requesting elevation to enable it (this window only, no permanent policy change)"
+        # Confirm here, once, in this (unelevated) process -- the
+        # self-invocation below re-runs this whole script from scratch in
+        # the elevated window, so it carries -Yes forward rather than
+        # asking a second time for the same action.
+        Confirm-Step "WSL isn't set up on this machine yet. Continuing needs an administrator-elevated process (temporary, this window only) to enable the WSL Windows feature and install $Distro, which may require a reboot."
+        Write-Step "Requesting elevation to enable WSL (this window only, no permanent policy change)"
 
         $selfInvocation = "& ([scriptblock]::Create((Invoke-RestMethod " +
             "'https://raw.githubusercontent.com/$Repo/main/bin/install-wsl.ps1'))) " +
-            "-Release '$Release' -Distro '$Distro'" + $(if ($Force) { ' -Force' } else { '' })
+            "-Release '$Release' -Distro '$Distro' -Yes" + $(if ($Force) { ' -Force' } else { '' })
 
         try {
             Start-Process powershell.exe `
@@ -125,6 +161,7 @@ if (-not (Test-WslAvailable)) {
         exit $LASTEXITCODE
     }
 
+    Confirm-Step "WSL isn't set up on this machine yet. This will enable the WSL Windows feature and install $Distro, which may require a reboot."
     Write-Step "Enabling WSL and installing $Distro (this can take a few minutes and may require a reboot)"
     wsl.exe --install -d $Distro
     if ($LASTEXITCODE -ne 0) {
@@ -198,6 +235,8 @@ CONTROLPLANE_SOURCE_DIR='$extractedWslPath' \
     if ($LASTEXITCODE -ne 0) {
         Fail "provisioning/wsl/install.sh exited with code $LASTEXITCODE inside $Distro."
     }
+
+    Write-Ok "Controlplane $Release installation completed."
 } finally {
     Remove-Item -Path $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
 }

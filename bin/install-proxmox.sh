@@ -109,22 +109,19 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "error: unrecognized argument '$1'" >&2
       usage >&2
-      exit 2
+      fail "unrecognized argument '$1'"
       ;;
   esac
 done
 
 if [ -z "$RELEASE" ]; then
-  echo "error: --release is required — see below." >&2
   usage >&2
-  exit 2
+  fail "--release is required -- see above."
 fi
 
 if ! [[ "$RELEASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-test\.[0-9]+)?$ ]]; then
-  echo "error: '${RELEASE}' doesn't look like a release tag (expected vMAJOR.MINOR.PATCH, optionally -test.N for the Test channel)." >&2
-  exit 2
+  fail "'${RELEASE}' doesn't look like a release tag (expected vMAJOR.MINOR.PATCH, optionally -test.N for the Test channel)."
 fi
 
 VERSION="${RELEASE#v}"
@@ -134,19 +131,16 @@ VERSION="${RELEASE#v}"
 # ---------------------------------------------------------------------------
 
 if [ "$(id -u)" -ne 0 ]; then
-  echo "error: this script must run as root (it provisions an LXC container and manages /opt/controlplane)." >&2
-  exit 1
+  fail "this script must run as root (it provisions an LXC container and manages /opt/controlplane)."
 fi
 
 if ! command -v pveversion >/dev/null 2>&1; then
-  echo "error: 'pveversion' not found — this doesn't look like a Proxmox VE host." >&2
-  exit 1
+  fail "'pveversion' not found -- this doesn't look like a Proxmox VE host."
 fi
 
 for cmd in curl tar sha256sum; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "error: required command '${cmd}' not found on this host." >&2
-    exit 1
+    fail "required command '${cmd}' not found on this host."
   fi
 done
 
@@ -163,45 +157,36 @@ trap cleanup EXIT
 ARCHIVE="controlplane-${VERSION}.tar.gz"
 BASE_URL="https://github.com/${REPO}/releases/download/${RELEASE}"
 
-echo "==> Fetching ${RELEASE} from ${REPO}"
+log "Fetching ${RELEASE} from ${REPO}"
 
-if ! curl -fsSL -o "${WORKDIR}/${ARCHIVE}" "${BASE_URL}/${ARCHIVE}"; then
-  echo "error: failed to download ${ARCHIVE} — check the release tag exists at" >&2
-  echo "       https://github.com/${REPO}/releases/tag/${RELEASE}" >&2
-  exit 1
+if ! curl -fsSL --retry 3 --retry-delay 2 -o "${WORKDIR}/${ARCHIVE}" "${BASE_URL}/${ARCHIVE}"; then
+  fail "failed to download ${ARCHIVE} -- check the release tag exists at https://github.com/${REPO}/releases/tag/${RELEASE}"
 fi
 
-if ! curl -fsSL -o "${WORKDIR}/${ARCHIVE}.sha256" "${BASE_URL}/${ARCHIVE}.sha256"; then
-  echo "error: failed to download the checksum file for ${RELEASE} — refusing to install" >&2
-  echo "       an unverifiable archive." >&2
-  exit 1
+if ! curl -fsSL --retry 3 --retry-delay 2 -o "${WORKDIR}/${ARCHIVE}.sha256" "${BASE_URL}/${ARCHIVE}.sha256"; then
+  fail "failed to download the checksum file for ${RELEASE} -- refusing to install an unverifiable archive."
 fi
 
-echo "==> Verifying checksum"
+log "Verifying checksum"
 if ! (cd "$WORKDIR" && sha256sum -c "${ARCHIVE}.sha256"); then
-  echo "error: checksum verification FAILED for ${ARCHIVE}. The download is corrupt or" >&2
-  echo "       has been tampered with — refusing to extract or execute it." >&2
-  exit 1
+  fail "checksum verification FAILED for ${ARCHIVE}. The download is corrupt or has been tampered with -- refusing to extract or execute it."
 fi
 
-echo "==> Extracting"
+log "Extracting"
 tar -xzf "${WORKDIR}/${ARCHIVE}" -C "$WORKDIR"
 
 EXTRACTED_DIR="${WORKDIR}/controlplane-${VERSION}"
 NEXT_STAGE="${EXTRACTED_DIR}/provisioning/proxmox/install.sh"
 
 if [ ! -f "$NEXT_STAGE" ]; then
-  echo "error: ${RELEASE} doesn't contain provisioning/proxmox/install.sh — this release" >&2
-  echo "       can't be installed on Proxmox. If you're seeing this on an official" >&2
-  echo "       release, please report it." >&2
-  exit 1
+  fail "${RELEASE} doesn't contain provisioning/proxmox/install.sh -- this release can't be installed on Proxmox. If you're seeing this on an official release, please report it."
 fi
 
 # ---------------------------------------------------------------------------
 # Hand off to the release's own installer
 # ---------------------------------------------------------------------------
 
-echo "==> Handing off to provisioning/proxmox/install.sh"
+log "Handing off to provisioning/proxmox/install.sh"
 chmod +x "$NEXT_STAGE"
 CONTROLPLANE_RELEASE="$RELEASE" \
 CONTROLPLANE_VERSION="$VERSION" \
@@ -215,3 +200,4 @@ CONTROLPLANE_ASSUME_YES="$ASSUME_YES" \
 # after a successful run, not used to gate anything on the next one.
 mkdir -p "$INSTALL_ROOT"
 echo "$RELEASE" > "$MARKER_FILE"
+ok "Controlplane ${RELEASE} installation completed."
