@@ -1,10 +1,23 @@
 {
   "title": "Controlplane Release Index",
   "schema_version": 1,
-  "channel": "test",
-  "latest": "v0.1.1-test.28",
-  "generated_at": "2026-08-26T16:42:33Z",
   "releases": [
+    {
+      "version": "0.1.1-test.29",
+      "channel": "test",
+      "source_sha": "1c44a122eed3cf5c466808615f5771c613f217af",
+      "published_at": "2026-09-03T07:25:35Z",
+      "checksum": "sha256:a83f5e5c03ced35c94a2333754882dca42b74697793825106fd214ce715a6fc2",
+      "url": "https://github.com/Fouchger/Homelab/releases/download/v0.1.1-test.29/controlplane-0.1.1-test.29.tar.gz",
+      "notes_url": "https://github.com/Fouchger/Homelab/releases/tag/v0.1.1-test.29",
+      "summary": "First Test-channel release of the rewritten Controlplane platform: web app, provisioning, and all managed-service Ansible roles.",
+      "acceptance": {
+        "status": "pending",
+        "tested_at": null,
+        "tested_by": null,
+        "notes": null
+      }
+    },
     {
       "version": "v0.1.1-test.28",
       "channel": "test",
