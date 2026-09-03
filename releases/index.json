@@ -3,6 +3,22 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "0.1.1-test.33",
+      "channel": "test",
+      "source_sha": "921ac3f72ea52c1951c15e236991f52dbc1369c0",
+      "published_at": "2026-09-03T17:49:50Z",
+      "checksum": "sha256:8b6ffa835b0186ad1a5faddca5ea9ab62cca0585187755d70b2baeed8054598d",
+      "url": "https://github.com/Fouchger/Homelab/releases/download/v0.1.1-test.33/controlplane-0.1.1-test.33.tar.gz",
+      "notes_url": "https://github.com/Fouchger/Homelab/releases/tag/v0.1.1-test.33",
+      "summary": "cd D:\\Homelab-Private_test git push --force-with-lease origin test",
+      "acceptance": {
+        "status": "pending",
+        "tested_at": null,
+        "tested_by": null,
+        "notes": null
+      }
+    },
+    {
       "version": "0.1.1-test.32",
       "channel": "test",
       "source_sha": "bc64214568ba75f970aaadecd260df305b1f87d5",
