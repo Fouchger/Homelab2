@@ -27,6 +27,9 @@
 # for confirmation first, read directly from the terminal. Pass --yes to
 # skip that prompt for scripted/CI runs.
 #
+# Output is colour/emoji-coded (matching the pre-rewrite bootstrap):
+# cyan for progress, green for success, red for a fatal error.
+#
 # See docs/standards/git-workflow.md for how a release gets published,
 # and docs/design/tool-stack.md for why the release is fetched from the
 # public mirror rather than this (private) repo.
@@ -51,6 +54,24 @@ readonly INSTALL_ROOT="/opt/controlplane"
 # actually decides create vs. update vs. recreate, by querying the host
 # for a tagged LXC, not by checking a file here).
 readonly MARKER_FILE="${INSTALL_ROOT}/LAST_BOOTSTRAP_RELEASE"
+
+# Colour only when stdout is a real terminal -- a piped/CI run gets plain
+# text instead of raw escape codes cluttering its log.
+if [ -t 1 ]; then
+  readonly COLOUR_CYAN='\033[1;36m'
+  readonly COLOUR_GREEN='\033[1;32m'
+  readonly COLOUR_RED='\033[1;31m'
+  readonly COLOUR_RESET='\033[0m'
+else
+  readonly COLOUR_CYAN=''
+  readonly COLOUR_GREEN=''
+  readonly COLOUR_RED=''
+  readonly COLOUR_RESET=''
+fi
+
+log() { printf '%b🚀 %s%b\n' "$COLOUR_CYAN" "$*" "$COLOUR_RESET"; }
+ok() { printf '%b✔ %s%b\n' "$COLOUR_GREEN" "$*" "$COLOUR_RESET"; }
+fail() { printf '%b✖ %s%b\n' "$COLOUR_RED" "$*" "$COLOUR_RESET" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Argument parsing
