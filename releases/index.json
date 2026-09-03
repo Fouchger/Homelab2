@@ -3,6 +3,22 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "0.1.1-test.30",
+      "channel": "test",
+      "source_sha": "c3255a1f9ed487ef0bfed68107ee5f95469e8207",
+      "published_at": "2026-09-03T07:39:40Z",
+      "checksum": "sha256:ff492df01aceb3802197fda776193379da78cc8aaed689337c94e6c95c5b27f8",
+      "url": "https://github.com/Fouchger/Homelab/releases/download/v0.1.1-test.30/controlplane-0.1.1-test.30.tar.gz",
+      "notes_url": "https://github.com/Fouchger/Homelab/releases/tag/v0.1.1-test.30",
+      "summary": "Crash fix: line 249 of provisioning/proxmox/install.sh had a broken quote-escaping artifact (awk '\"'\"'{print $2}'\"'\"') left over from the platform rewrite \u2014 it flipped the shell into double-quote context around {print $2}, so $2 got shell-expanded as an unset positional parameter instead of staying a literal awk field. That's exactly the \"line 249: $2: unbound variable\" crash in your screenshot. Missing confirmation, restored: the rewrite dropped the old installer's whiptail confirm dialog entirely \u2014 it now silently updates or destroys an existing tagged LXC. Added a confirm() prompt before both the update-in-place and --recreate paths, reading from /dev/tty directly (stdin is the piped script itself under curl | bash -s --, not a terminal). A new -y/--yes flag skips it for scripted runs; with neither a terminal nor --yes, it refuses to guess rather than proceeding.",
+      "acceptance": {
+        "status": "pending",
+        "tested_at": null,
+        "tested_by": null,
+        "notes": null
+      }
+    },
+    {
       "version": "0.1.1-test.29",
       "channel": "test",
       "source_sha": "1c44a122eed3cf5c466808615f5771c613f217af",
