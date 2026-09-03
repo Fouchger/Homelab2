@@ -3,6 +3,22 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "0.1.1-test.31",
+      "channel": "test",
+      "source_sha": "756d768af9df508c3e2b4bb923f4067a9c7323f8",
+      "published_at": "2026-09-03T08:26:13Z",
+      "checksum": "sha256:5d3144d5ab1d0eff0a3f20c5cd56ce8d10edc389b904b90a5f352ddfd17ffbce",
+      "url": "https://github.com/Fouchger/Homelab/releases/download/v0.1.1-test.31/controlplane-0.1.1-test.31.tar.gz",
+      "notes_url": "https://github.com/Fouchger/Homelab/releases/tag/v0.1.1-test.31",
+      "summary": "bin/install-proxmox.sh: colored/emoji log/ok/fail output (\ud83d\ude80 cyan / \u2714 green / \u2716 red, matching test.28's scheme), curl fetches now retry (--retry 3 --retry-delay 2), all error paths go through fail() instead of raw echo ... >&2; exit. provisioning/proxmox/install.sh: same color scheme applied to its log/warn/die, and the confirm-before-touching-an-existing-LXC prompt (added last round) now visually matches \u2014 yellow \u2753 ... [y/N]. bin/install-wsl.ps1: Write-Step/Fail gained matching emoji, and a new Confirm-Step + -Yes switch gates the one genuinely consequential action in that script \u2014 enabling the WSL feature and elevating to admin \u2014 mirroring test.28's \"Continue with the temporary bypass? [y/N]\" prompt. Note I caught a bug in my own first draft here: elevation re-invokes the whole script in a new process, so a naive prompt would've fired twice (once unelevated, again in the elevated window). Fixed by confirming once and threading -Yes through the self-invocation.",
+      "acceptance": {
+        "status": "pending",
+        "tested_at": null,
+        "tested_by": null,
+        "notes": null
+      }
+    },
+    {
       "version": "0.1.1-test.30",
       "channel": "test",
       "source_sha": "c3255a1f9ed487ef0bfed68107ee5f95469e8207",
