@@ -1,74 +1,94 @@
 # Controlplane Platform
 
-Provision a production Ubuntu controlplane on Proxmox VE and a closely matched
-Ubuntu WSL 2 environment for development and testing. Every installation is
-pinned to a published release and verified with SHA-256 before execution.
+Controlplane provisions and manages a homelab's infrastructure — DNS,
+metrics, logs, dashboards, a Cloudflare tunnel — from one web app,
+instead of hand-configuring each service on its own LXC. It runs
+production on Proxmox VE, and a closely matched environment in WSL 2
+mirrors the same install for development and testing.
 
-![Release](https://img.shields.io/badge/release-v0.1.0-blue?style=for-the-badge)
-![Channel](https://img.shields.io/badge/channel-stable-brightgreen?style=for-the-badge)
-![Released](https://img.shields.io/badge/released-2026--08--22-informational?style=for-the-badge)
-![Checksums](https://img.shields.io/badge/checksums-SHA--256-blue?style=for-the-badge)
+Every install is pinned to a specific published release and verified
+against its SHA-256 checksum before anything runs — there's no
+"install latest" path that could silently pull something unverified.
 
-| Current release | Published | Channel |
-| --- | --- | --- |
-| `v0.1.0` | `2026-08-22` | `stable` |
+## Install
 
-> [!IMPORTANT]
-> Stable releases have been promoted from an identical tested source commit.
+Replace `vX.Y.Z` with the release you want — the current Stable and
+Test versions are listed on the
+[Releases page](https://github.com/Fouchger/Homelab/releases) and in
+this repo's own [`releases/index.json`](releases/index.json) on the
+`main` branch (Stable) or the
+[`test`](https://github.com/Fouchger/Homelab/blob/test/releases/index.json)
+branch (Test). Don't substitute `latest` for a real tag — every install
+is pinned on purpose.
 
-## What this project provides
+> No release has been published yet. The commands below are correct
+> once a release is cut from the Actions tab and `release.yml` publishes
+> it — see
+> [`docs/standards/git-workflow.md`](docs/standards/git-workflow.md#versioning--semantic-versioning-with-a-computed-prerelease-number)
+> for how a version gets cut.
 
-| Platform | Intended use | Environment |
-| --- | --- | --- |
-| Proxmox VE | Production | Unprivileged Ubuntu LXC |
-| Windows 11 WSL 2 | Development and testing | Ubuntu WSL distribution |
-
-Both installers provide an interactive Ubuntu 24.04 LTS or Ubuntu 26.04 LTS
-setup and apply the shared Controlplane baseline as closely as each platform
-allows.
-
-## Install the current release
-
-The following commands are already pinned to `v0.1.0`. Copy the command
-for your platform without replacing any values.
-
-### Proxmox VE
-
-Run in the Proxmox VE host shell as `root`:
+**Proxmox VE** — run as `root` in the Proxmox host shell:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Fouchger/Homelab/main/install-proxmox.sh | bash -s -- --release v0.1.0
+curl -fsSL https://raw.githubusercontent.com/Fouchger/Homelab/main/bin/install-proxmox.sh \
+  | bash -s -- --release vX.Y.Z
 ```
 
-### Windows WSL
-
-Run in Windows PowerShell. The installer requests elevation only when Windows
-requires it:
+**Windows WSL 2** — run in Windows PowerShell. Elevation is only
+requested if WSL itself still needs enabling, and only for that one
+step:
 
 ```powershell
-& ([scriptblock]::Create((Invoke-RestMethod 'https://raw.githubusercontent.com/Fouchger/Homelab/main/install-wsl.ps1'))) -Release 'v0.1.0'
+& ([scriptblock]::Create((Invoke-RestMethod `
+    'https://raw.githubusercontent.com/Fouchger/Homelab/main/bin/install-wsl.ps1'))) `
+    -Release 'vX.Y.Z'
 ```
 
-## Security and verification
+Both scripts do exactly one job: fetch the pinned release, verify its
+checksum, extract it, and hand off to that release's own
+`provisioning/proxmox/install.sh` or `provisioning/wsl/install.sh`.
+Nothing platform-specific lives in the bootstrap script itself, so it
+stays stable across releases.
 
-Both bootstrap installers download the matching SHA-256 checksum from the
-GitHub release and verify the runtime asset before executing it.
+## Release channels
 
-On Windows, the bootstrap asks for approval before starting a separate
-PowerShell process with a temporary execution-policy bypass. The bypass ends
-when that process exits and does not change the user or machine policy. A
-`Restricted` or `AllSigned` Group Policy cannot be overridden by elevation; a
-Windows administrator must change the managed policy or provide signed scripts.
+| Channel | Tag pattern | Intended for |
+| --- | --- | --- |
+| Stable | `vMAJOR.MINOR.PATCH` | Production installs |
+| Test | `vMAJOR.MINOR.PATCH-test.N` | Trying a change before it reaches Stable |
 
-## Releases and support information
+A Test release is a fresh cut of the `test` branch. A Stable release is
+never cut directly from a branch snapshot — it's a *promotion* of a Test
+release that has already been validated against real hardware or WSL and
+has a recorded 'passed' result, cut from `main` once that validation
+holds (see
+[`docs/standards/git-workflow.md`](docs/standards/git-workflow.md#promotion--test-to-stable)).
 
-- [Release history](RELEASES.md) — newest version first
-- [Current release notes](releases/v0.1.0.md)
-- [Machine-readable release index](releases/index.json)
-- [Third-party notices](NOTICE.md)
+Switching an existing install's channel, installing a different
+version, and rolling back are all done from the running app's Releases
+page — never by re-running the bootstrap script over an existing
+install.
 
-## Public repository scope
+## Verification
 
-This branch contains only the files required to install and verify public
-runtime releases. Development source, tests, build tools and private repository
-history are not published here.
+Every release ships as a source archive plus a `.sha256` checksum file,
+both attached to its GitHub Release. The bootstrap scripts download
+both and refuse to extract or execute the archive if the checksum
+doesn't match. The same archive and checksum are what the running app
+itself downloads for an in-place version change or rollback.
+
+## Development
+
+This repository is a public mirror, published on demand from the
+private development repository — see
+[`docs/standards/git-workflow.md`](docs/standards/git-workflow.md) for
+the branching model, and [`docs/design/`](docs/design/) for the
+platform's functional design, tool choices, and module boundaries.
+Want to report a bug, suggest something, or contribute code? See
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Found a security issue? See
+[`SECURITY.md`](SECURITY.md) instead of opening a public issue.
+
+## License
+
+[MIT](LICENSE) — see [`CHANGELOG.md`](CHANGELOG.md) for what's changed
+release to release.
