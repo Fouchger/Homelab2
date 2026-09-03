@@ -23,6 +23,10 @@
 # to destroy the existing LXC and build a fresh one instead — see that
 # script's own header for exactly what each mode does.
 #
+# Touching an existing LXC (update-in-place or --recreate) always asks
+# for confirmation first, read directly from the terminal. Pass --yes to
+# skip that prompt for scripted/CI runs.
+#
 # See docs/standards/git-workflow.md for how a release gets published,
 # and docs/design/tool-stack.md for why the release is fetched from the
 # public mirror rather than this (private) repo.
@@ -54,6 +58,7 @@ readonly MARKER_FILE="${INSTALL_ROOT}/LAST_BOOTSTRAP_RELEASE"
 
 RELEASE=""
 RECREATE=0
+ASSUME_YES=0
 
 usage() {
   cat <<EOF
@@ -73,6 +78,10 @@ Usage: $(basename "$0") --release vX.Y.Z [--recreate]
                      (new code, same database/secrets); with no
                      existing install, it's a normal fresh create
                      either way.
+  -y, --yes          Skip the confirmation prompt before updating or
+                     recreating an existing LXC. For scripted/CI runs;
+                     interactively, always confirm first instead of
+                     passing this by habit.
   -h, --help         Show this help text.
 EOF
 }
@@ -89,6 +98,10 @@ while [ $# -gt 0 ]; do
       ;;
     --recreate)
       RECREATE=1
+      shift
+      ;;
+    -y|--yes)
+      ASSUME_YES=1
       shift
       ;;
     -h|--help)
@@ -195,6 +208,7 @@ CONTROLPLANE_VERSION="$VERSION" \
 CONTROLPLANE_SOURCE_DIR="$EXTRACTED_DIR" \
 CONTROLPLANE_INSTALL_ROOT="$INSTALL_ROOT" \
 CONTROLPLANE_RECREATE="$RECREATE" \
+CONTROLPLANE_ASSUME_YES="$ASSUME_YES" \
   "$NEXT_STAGE"
 
 # Informational only (see MARKER_FILE's own comment above) -- written
